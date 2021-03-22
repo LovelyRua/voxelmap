@@ -1,9 +1,19 @@
 use clap::{crate_authors, crate_description, crate_name, crate_version, App, Arg};
+use std::fs;
+use std::io::{Error, ErrorKind};
 
 macro_rules! scale_message {
     ($n:ident) => {
         Err(format!("<{}> is not a positive integer", $n))
     };
+}
+
+fn io_error(err: Error, path: &str) -> String {
+    match err.kind() {
+        ErrorKind::NotFound => format!("{} not found", path),
+        ErrorKind::PermissionDenied => format!("Permission to read {} denied", path),
+        _ => format!("Unexpected error accessing {}", path),
+    }
 }
 
 fn main() {
@@ -29,6 +39,24 @@ fn main() {
                             }
                         }
                         Err(_) => scale_message!(n),
+                    }
+                }),
+        )
+        .arg(
+            Arg::with_name("FILE")
+                .help("The file describing the shape to map")
+                .required(true)
+                .index(1)
+                .validator(|path: String| -> Result<(), String> {
+                    match fs::metadata(&path) {
+                        Ok(stat) => {
+                            if stat.is_dir() {
+                                Err(format!("{} is a directory, not a file", path))
+                            } else {
+                                Ok(())
+                            }
+                        }
+                        Err(error) => Err(io_error(error, &path)),
                     }
                 }),
         )

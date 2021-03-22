@@ -7,3 +7,5 @@ description = "Converts mathematical descriptions of objects to voxel maps"
 
 [dependencies]
 clap = "2.33"
+logos = "0.12"
+pomelo = "0.1.5"
