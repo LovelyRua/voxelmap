@@ -1,6 +1,6 @@
 use clap::{crate_authors, crate_description, crate_name, crate_version, App, Arg};
 use std::fs;
-use std::io::{Error, ErrorKind};
+use std::io::{Error, ErrorKind, Read};
 
 macro_rules! scale_message {
     ($n:ident) => {
@@ -47,15 +47,9 @@ fn main() {
                 .help("The file describing the shape to map")
                 .required(true)
                 .index(1)
-                .validator(|path: String| -> Result<(), String> {
-                    match fs::metadata(&path) {
-                        Ok(stat) => {
-                            if stat.is_dir() {
-                                Err(format!("{} is a directory, not a file", path))
-                            } else {
-                                Ok(())
-                            }
-                        }
+                .validator(move |path: String| -> Result<(), String> {
+                    match fs::File::open(&path) {
+                        Ok(_) => Ok(()),
                         Err(error) => Err(io_error(error, &path)),
                     }
                 }),
@@ -64,5 +58,13 @@ fn main() {
 
     let scale = matches.value_of("scale").map(|s| s.parse::<i32>().unwrap());
 
-    println!("Scale was read and is <{}>", scale.unwrap_or(1));
+    let mut object_description = fs::File::open(matches.value_of("FILE").unwrap()).unwrap();
+
+    let mut data = Vec::new();
+
+    if let Ok(size) = object_description.read_to_end(&mut data) {
+        println!("Read {} bytes, scale is {}", size, scale.unwrap_or(1));
+    }
+
+    //println!("Scale was read and is <{}>", scale.unwrap_or(1));
 }
