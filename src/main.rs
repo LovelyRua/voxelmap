@@ -48,7 +48,44 @@ pomelo! {
 
     %type #[regex("s|x|y|z|r|ρ|θ|φ", read_var)] Var char;
 
-    %type #[token("e", |_| std::f64::consts::E)] #[token("pi", |_| std::f64::consts::PI)] #[regex("pi/2\\s", |_| std::f64::consts::FRAC_PI_2)] #[regex("pi/3\\s", |_| std::f64::consts::FRAC_PI_3)] #[regex("pi/4\\s", |_| std::f64::consts::FRAC_PI_4)] #[regex("pi/6\\s", |_| std::f64::consts::FRAC_PI_6)] #[regex("pi/8\\s", |_| std::f64::consts::FRAC_PI_8)] #[token("2pi", |_| std::f64::consts::TAU)] #[token("π", |_| std::f64::consts::PI)] #[regex("π/2\\s", |_| std::f64::consts::FRAC_PI_2)] #[regex("π/3\\s", |_| std::f64::consts::FRAC_PI_3)] #[regex("π/4\\s", |_| std::f64::consts::FRAC_PI_4)] #[regex("π/6\\s", |_| std::f64::consts::FRAC_PI_6)] #[regex("π/8\\s", |_| std::f64::consts::FRAC_PI_8)] #[token("2π", |_| std::f64::consts::TAU)] #[token("tau", |_| std::f64::consts::TAU)] #[token("τ", |_| std::f64::consts::TAU)] #[regex("√2\\s", |_| std::f64::consts::SQRT_2)] #[regex(r"[+-]?(?:\d*\.)?\d+", |lex| lex.slice().parse())] Float f64;
+    %type #[regex(r"@[^@ \t\f\n]+", |lex| String::from(lex.slice()))] Ident String;
+
+    %type   #[token("set")]
+            #[token("define")]
+            #[token("assign")]
+            Assign;
+
+    %type   #[token("e", |_| std::f64::consts::E)]
+            #[token("pi", |_| std::f64::consts::PI)]
+            #[regex("½pi", |_| std::f64::consts::FRAC_PI_2)]
+            #[regex("⅓pi", |_| std::f64::consts::FRAC_PI_3)]
+            #[regex("¼pi", |_| std::f64::consts::FRAC_PI_4)]
+            #[regex("⅙pi", |_| std::f64::consts::FRAC_PI_6)]
+            #[regex("⅛pi", |_| std::f64::consts::FRAC_PI_8)]
+            #[regex("(pi/2)", |_| std::f64::consts::FRAC_PI_2)]
+            #[regex("(pi/3)", |_| std::f64::consts::FRAC_PI_3)]
+            #[regex("(pi/4)", |_| std::f64::consts::FRAC_PI_4)]
+            #[regex("(pi/6)", |_| std::f64::consts::FRAC_PI_6)]
+            #[regex("(pi/8)", |_| std::f64::consts::FRAC_PI_8)]
+            #[token("2pi", |_| std::f64::consts::TAU)]
+            #[token("π", |_| std::f64::consts::PI)]
+            #[regex("½π", |_| std::f64::consts::FRAC_PI_2)]
+            #[regex("⅓π", |_| std::f64::consts::FRAC_PI_3)]
+            #[regex("¼π", |_| std::f64::consts::FRAC_PI_4)]
+            #[regex("⅙π", |_| std::f64::consts::FRAC_PI_6)]
+            #[regex("⅛π", |_| std::f64::consts::FRAC_PI_8)]
+            #[regex("(π/2)", |_| std::f64::consts::FRAC_PI_2)]
+            #[regex("(π/3)", |_| std::f64::consts::FRAC_PI_3)]
+            #[regex("(π/4)", |_| std::f64::consts::FRAC_PI_4)]
+            #[regex("(π/6)", |_| std::f64::consts::FRAC_PI_6)]
+            #[regex("(π/8)", |_| std::f64::consts::FRAC_PI_8)]
+            #[token("2π", |_| std::f64::consts::TAU)]
+            #[token("tau", |_| std::f64::consts::TAU)]
+            #[token("τ", |_| std::f64::consts::TAU)]
+            #[regex("√2\\s", |_| std::f64::consts::SQRT_2)]
+            #[regex("√(2)", |_| std::f64::consts::SQRT_2)]
+            #[regex(r"[+-]?(?:\d*\.)?\d+", |lex| lex.slice().parse())]
+            Float f64;
 
     %type #[token("+")] Sum;
     %type #[token("-")] Subtraction;
@@ -56,36 +93,71 @@ pomelo! {
     %type #[token("*")] Product;
     %type #[token("^")] Power;
 
-    %type #[regex("=|<|>|≤|≥", read_var)] #[regex("<=", |_| '≤')] #[regex(">=", |_| '≥')] Qualifier char;
+    %type   #[regex("=|<|>|≤|≥", read_var)]
+            #[regex("<=", |_| '≤')]
+            #[regex(">=", |_| '≥')]
+            Qualifier char;
 
-    %type #[regex("⋀|⋁|⊻|⊼|⊽", read_var)] #[regex("⋂|∧|and|AND|&&", |_| '⋀')] #[regex("∪|∨|v|or|OR|\\|\\|", |_| '⋁')] #[regex("⩒|⩛|⊕|⩡|xor|XOR", |_| '⊻')] #[regex("⩃|nand|NAND", |_| '⊼')] #[regex("⩂|nor|NOR", |_| '⊽')] Junction char;
+    %type   #[regex("⋀|⋁|⊻|⊼|⊽", read_var)]
+            #[regex("⋂|∧|and|AND|&&", |_| '⋀')]
+            #[regex("∪|∨|v|or|OR|\\|\\|", |_| '⋁')]
+            #[regex("⩒|⩛|⊕|⩡|xor|XOR", |_| '⊻')]
+            #[regex("⩃|nand|NAND", |_| '⊼')]
+            #[regex("⩂|nor|NOR", |_| '⊽')]
+            Junction char;
 
-    %type #[token("sin", |_| FunctionType::Sin)] #[token("cos", |_| FunctionType::Cos)] #[token("tan", |_| FunctionType::Tan)] #[token("asin", |_| FunctionType::Asin)] #[token("acos", |_| FunctionType::Acos)] #[token("atan", |_| FunctionType::Atan)] #[token("sign", |_| FunctionType::Sign)] #[token("abs", |_| FunctionType::Abs)] #[token("sqrt", |_| FunctionType::Sqrt)] #[token("√", |_| FunctionType::Sqrt)] #[token("exp", |_| FunctionType::Exp)] #[token("ln", |_| FunctionType::Log(1.0))] #[token("log", |_| FunctionType::Log(std::f64::consts::LN_10))] Function FunctionType;
+    %type   #[token("sin", |_| FunctionType::Sin)]
+            #[token("cos", |_| FunctionType::Cos)]
+            #[token("tan", |_| FunctionType::Tan)]
+            #[token("asin", |_| FunctionType::Asin)]
+            #[token("acos", |_| FunctionType::Acos)]
+            #[token("atan", |_| FunctionType::Atan)]
+            #[token("sign", |_| FunctionType::Sign)]
+            #[token("abs", |_| FunctionType::Abs)]
+            #[token("sqrt", |_| FunctionType::Sqrt)]
+            #[token("√", |_| FunctionType::Sqrt)]
+            #[token("exp", |_| FunctionType::Exp)]
+            #[token("ln", |_| FunctionType::Log(1.0))]
+            #[token("log", |_| FunctionType::Log(std::f64::consts::LN_10))]
+            Function FunctionType;
 
-    %type #[token("(")] LParen;
-    %type #[token(")")] RParen;
+    %type   #[token("(")] LParen;
+    %type   #[token(")")] RParen;
 
-    %type #[regex(r"\n+")] LineEnd;
+    %type   #[token("{")] LBrace;
+    %type   #[token("}")] RBrace;
 
-    %type #[regex("\\\\n", logos::skip)] #[regex("#.*\\n", logos::skip)] #[regex("//.*\\n", logos::skip)] #[regex(r"[ \t\f]+", logos::skip)] #[error] Error;
+    %type   #[regex(r"\n+")] LineEnd;
+
+    %type   #[regex("\\\\n", logos::skip)]
+            #[regex("#.*\\n", logos::skip)]
+            #[regex("//.*\\n", logos::skip)]
+            #[regex(r"[ \t\f]+", logos::skip)]
+            #[error]
+            Error;
 
     %left Junction;
-    %nonassoc Qualifier;
+    %nonassoc Qualifier Assign;
     %left Sum Subtraction;
     %left Product Quotient;
     %right Power;
     %right Function;
     %left LineEnd;
 
-    input ::= limit LineEnd limit LineEnd limit LineEnd metajuncture;
-    input ::= limit LineEnd limit LineEnd limit LineEnd metajuncture LineEnd;
-    input ::= LineEnd limit LineEnd limit LineEnd limit LineEnd metajuncture LineEnd;
-    input ::= LineEnd limit LineEnd limit LineEnd limit LineEnd metajuncture;
+    input ::= limits metajuncture;
+    input ::= limits assignments metajuncture;
     limit ::= expr Qualifier Var Qualifier expr;
+    limits ::= limit LineEnd limit LineEnd limit LineEnd;
+    limits ::= LineEnd limits;
+    assignment ::= Assign Ident expr;
+    assignments ::= assignment LineEnd;
+    assignments ::= assignment LineEnd assignments;
     quality ::= expr Qualifier expr;
     juncture ::= quality;
     juncture ::= juncture Junction juncture;
+    juncture ::= LBrace juncture RBrace;
     metajuncture ::= juncture;
+    metajuncture ::= metajuncture LineEnd;
     metajuncture ::= metajuncture LineEnd metajuncture;
 
     expr ::= expr Sum expr;
@@ -97,6 +169,7 @@ pomelo! {
     expr ::= LParen expr RParen;
     expr ::= Var;
     expr ::= Float;
+    expr ::= Ident;
 }
 
 fn main() -> Result<(), ()> {
@@ -145,17 +218,29 @@ fn main() -> Result<(), ()> {
 
     let mut data = String::new();
 
-    if let Ok(_) = object_description.read_to_string(&mut data) {
+    if object_description.read_to_string(&mut data).is_ok() {
         let lex = parser::Token::lexer(&data);
 
         let mut p = parser::Parser::new();
 
+        let mut line_ends = false;
+
         for token in lex {
+            println!("{:?}", token);
+            if token == parser::Token::LineEnd {
+                if line_ends {
+                    continue;
+                } else {
+                    line_ends = true;
+                }
+            } else {
+                line_ends = false;
+            }
             p.parse(token)?;
-            //print!("{:?} ", token);
         }
+
         let tree = p.end_of_input()?;
-        println!("{:?}",tree);
+        println!("\n{:?}", tree);
         //println!("\nRead {} bytes, scale is {}", size, scale.unwrap_or(1));
     }
 
