@@ -1,6 +1,7 @@
 use clap::{crate_authors, crate_description, crate_name, crate_version, App, Arg};
 use logos::Logos;
 use pomelo::pomelo;
+use rgb::*;
 use std::collections::HashMap;
 use std::fs;
 use std::io::{Error, ErrorKind, Read};
@@ -17,7 +18,8 @@ macro_rules! scale_message {
 fn io_error(err: Error, path: &str) -> String {
     match err.kind() {
         ErrorKind::NotFound => format!("{} not found", path),
-        ErrorKind::PermissionDenied => format!("Permission to read {} denied", path),
+        ErrorKind::PermissionDenied => format!("Permission to access {} denied", path),
+        ErrorKind::AlreadyExists => format!("{} already exists", path),
         _ => format!("Unexpected error accessing {}", path),
     }
 }
@@ -267,6 +269,14 @@ fn main() -> Result<(), error::Error> {
                 }),
         )
         .arg(
+            Arg::with_name("offset")
+                .short("o")
+                .long("offset")
+                .help("Offset the computation by half a block")
+                .takes_value(false)
+                .multiple(false),
+        )
+        .arg(
             Arg::with_name("FILE")
                 .help("The file describing the shape to map")
                 .required(true)
@@ -278,11 +288,27 @@ fn main() -> Result<(), error::Error> {
                     }
                 }),
         )
+        .arg(
+            Arg::with_name("OUTPUT_DIR")
+                .help("The folder where the output images will be stored")
+                .required(true)
+                .index(2)
+                .validator(move |path: String| -> Result<(), String> {
+                    match fs::create_dir(&path) {
+                        Ok(_) => Ok(()),
+                        Err(error) => Err(io_error(error, &path)),
+                    }
+                }),
+        )
         .get_matches();
 
     let scale = matches.value_of("scale").map(|s| s.parse::<i32>().unwrap());
 
     let mut object_description = fs::File::open(matches.value_of("FILE").unwrap()).unwrap();
+
+    let output_folder = matches.value_of("OUTPUT_DIR").unwrap();
+
+    let offset = matches.is_present("offset");
 
     let mut data = String::new();
 
@@ -337,7 +363,8 @@ fn main() -> Result<(), error::Error> {
                 }
             }
             let var_arg = Some(&vars);
-            let min = limit.min.eval(&ident_arg, &var_arg)?.floor() as i64;
+            let min =
+                (limit.min.eval(&ident_arg, &var_arg)?.floor() as i64) - if offset { 1 } else { 0 };
             let max = limit.max.eval(&ident_arg, &var_arg)?.ceil() as i64;
             match limit.var {
                 'x' => {
@@ -374,6 +401,80 @@ fn main() -> Result<(), error::Error> {
         }
         if unbounded {
             return Err(Error::UnboundedVar);
+        }
+
+        let min_x: i64 = min_x.unwrap();
+        let max_x: i64 = max_x.unwrap();
+        let min_y: i64 = min_y.unwrap();
+        let max_y: i64 = max_y.unwrap();
+        let min_z: i64 = min_z.unwrap();
+        let max_z: i64 = max_z.unwrap();
+
+        let width: i64 = 1 + max_x - min_x;
+        let height: i64 = 1 + max_y - min_y;
+
+        let pix_width: usize = 6 * (width as usize) + 1;
+        let pix_height: usize = 6 * (height as usize) + 1;
+        let pix_size: usize = pix_width * pix_height;
+
+        for z in min_z..=max_z {
+            let name = format! {"{}/layer{:04}.png",output_folder,1 + z - min_z};
+
+            let filled_in = RGBA8::new(0, 0, 0, 255); // Black
+            let empty = RGBA8::new(255, 255, 255, 255); // White
+            let multiple_filled_in = RGBA8::new(0, 0, 255, 255); // Blue
+            let multiple_empty = RGBA8::new(255, 255, 0, 255); // Yellow
+            let grid = RGBA8::new(255, 128, 128, 255); // Coral (Grid)
+
+            let mut pixels: Vec<RGBA8> = Vec::with_capacity(pix_size);
+
+            pixels.resize(pix_size, grid);
+
+            for y in min_y..=max_y {
+                let square_start_y = 6 * (y - min_y) as usize;
+                let grid_y = y.abs() % 10 == 0;
+                for x in min_x..=max_x {
+                    let x_f: f64 = (x as f64) + if offset { 0.5_f64 } else { 0_f64 };
+                    let y_f: f64 = (y as f64) + if offset { 0.5_f64 } else { 0_f64 };
+                    let z_f: f64 = (z as f64) + if offset { 0.5_f64 } else { 0_f64 };
+                    let rho: f64 = (x_f.powi(2) + y_f.powi(2)).sqrt();
+                    let phi: f64 = y_f.atan2(x_f);
+                    let r: f64 = (z_f.powi(2) + rho.powi(2)).sqrt();
+                    let tht: f64 = (z_f / rho).atan();
+
+                    vars.insert('x', x_f);
+                    vars.insert('y', y_f);
+                    vars.insert('z', z_f);
+                    vars.insert('ρ', rho);
+                    vars.insert('φ', phi);
+                    vars.insert('r', r);
+                    vars.insert('θ', tht);
+
+                    let var_arg = Some(&vars);
+
+                    let square_start_x = 6 * (x - min_x) as usize;
+
+                    let grid = if grid_y { true } else { x.abs() % 10 == 0 };
+                    let is_filled = tree.eval(&ident_arg, &var_arg)?;
+
+                    let color = match (is_filled, grid) {
+                        (false, false) => empty,
+                        (false, true) => multiple_empty,
+                        (true, false) => filled_in,
+                        (true, true) => multiple_filled_in,
+                    };
+
+                    for pix_x in 0..5 {
+                        for pix_y in 0..5 {
+                            pixels[(1 + square_start_y + pix_y) * pix_width
+                                + 1
+                                + square_start_x
+                                + pix_x] = color;
+                        }
+                    }
+                }
+            }
+            lodepng::encode32_file(name, &pixels, pix_width, pix_height)?;
         }
     }
 
