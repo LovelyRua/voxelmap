@@ -1,10 +1,12 @@
 use clap::{crate_authors, crate_description, crate_name, crate_version, App, Arg};
 use logos::Logos;
 use pomelo::pomelo;
+use std::collections::HashMap;
 use std::fs;
 use std::io::{Error, ErrorKind, Read};
 
 mod astree;
+mod error;
 
 macro_rules! scale_message {
     ($n:ident) => {
@@ -23,17 +25,17 @@ fn io_error(err: Error, path: &str) -> String {
 pomelo! {
     %include {
         use logos::{Lexer, Logos};
-        use crate::astree::{Condition, Expression, FunctionType, Junction, Error};
+        use crate::astree::{Condition, Expression, FunctionType, Junction};
         use std::collections::HashMap;
 
         #[derive(Debug)]
-        pub struct Limit{
-            var: char,
-            min: Expression,
-            max: Expression,
+        pub struct Boundary{
+            pub var: char,
+            pub min: Expression,
+            pub max: Expression,
         }
 
-        impl Limit{
+        impl Boundary{
             pub fn new(
                 l: Expression,
                 lcond: char,
@@ -48,14 +50,14 @@ pomelo! {
                     if rcond == '<' || rcond == '≤'{
                         let min = l;
                         let max = r;
-                        return Ok(Limit{var,min,max});
+                        return Ok(Boundary{var,min,max});
                     }
                     return Err(());
                 }else if lcond == '>' || lcond == '≥'{
                     if rcond == '>' || rcond == '≥'{
                         let min = r;
                         let max = l;
-                        return Ok(Limit{var,min,max});
+                        return Ok(Boundary{var,min,max});
                     }
                     return Err(());
                 }
@@ -63,9 +65,9 @@ pomelo! {
             }
         }
 
-        type Limits = (Limit,Limit,Limit);
+        type Boundaries = [Boundary; 3];
 
-        type Return = (Option<HashMap<String,Expression>>,Limits,Junction);
+        type Return = (Option<HashMap<String,Expression>>, Boundaries, Junction);
 
         fn read_var(lex: &mut Lexer<Token>) -> Option<char> {
             lex.slice().chars().next()
@@ -174,16 +176,16 @@ pomelo! {
     %left LineEnd;
 
     %type input Return;
-    input ::= limits(L) metajuncture(J) { (None,L,J) }
-    input ::= LineEnd limits(L) metajuncture(J) { (None,L,J) }
-    input ::= assignments(A) limits(L) metajuncture(J) { (Some(A),L,J) }
-    input ::= LineEnd assignments(A) limits(L) metajuncture(J) { (Some(A),L,J) }
+    input ::= boundaries(L) metajuncture(J) { (None,L,J) }
+    input ::= LineEnd boundaries(L) metajuncture(J) { (None,L,J) }
+    input ::= assignments(A) boundaries(L) metajuncture(J) { (Some(A),L,J) }
+    input ::= LineEnd assignments(A) boundaries(L) metajuncture(J) { (Some(A),L,J) }
 
-    %type limit Limit;
-    limit ::= expr(L) Qualifier(F) Var(V) Qualifier(S) expr(R) { Limit::new(L,F,V,S,R)? }
+    %type boundary Boundary;
+    boundary ::= expr(L) Qualifier(F) Var(V) Qualifier(S) expr(R) { Boundary::new(L,F,V,S,R)? }
 
-    %type limits Limits;
-    limits ::= limit(A) LineEnd limit(B) LineEnd limit(C) LineEnd { (A,B,C) }
+    %type boundaries Boundaries;
+    boundaries ::= boundary(A) LineEnd boundary(B) LineEnd boundary(C) LineEnd { [A,B,C] }
 
     %type assignment (String,Expression);
     assignment ::= Assign Ident(S) expr(E) { (S,E) }
@@ -192,12 +194,22 @@ pomelo! {
     assignments ::= assignment(A) LineEnd {
                                                 let (k,v) = A;
                                                 let mut m = HashMap::new();
-                                                m.insert(k,v);
+                                                let ident_arg = Some(&m);
+                                                if v.ident_dependencies(&ident_arg).is_ok() {
+                                                    m.insert(k,v);
+                                                }else{
+                                                    eprintln!("Undefined reference in {}",k);
+                                                }
                                                 m
                                             }
-    assignments ::= assignment(A) LineEnd assignments(mut M){
+    assignments ::= assignments(mut M) assignment(A) LineEnd {
                                                             let (k,v) = A;
-                                                            M.insert(k,v);
+                                                            let ident_arg = Some(&M);
+                                                            if v.ident_dependencies(&ident_arg).is_ok() {
+                                                                M.insert(k,v);
+                                                            }else{
+                                                                eprintln!("Undefined reference in {}",k);
+                                                            }
                                                             M
                                                         }
     %type quality Condition;
@@ -226,7 +238,9 @@ pomelo! {
     expr ::= Ident(S) { Expression::ident(S) }
 }
 
-fn main() -> Result<(), ()> {
+fn main() -> Result<(), error::Error> {
+    use error::Error;
+
     let matches = App::new(crate_name!())
         .version(crate_version!())
         .author(crate_authors!())
@@ -266,7 +280,7 @@ fn main() -> Result<(), ()> {
         )
         .get_matches();
 
-    //let scale = matches.value_of("scale").map(|s| s.parse::<i32>().unwrap());
+    let scale = matches.value_of("scale").map(|s| s.parse::<i32>().unwrap());
 
     let mut object_description = fs::File::open(matches.value_of("FILE").unwrap()).unwrap();
 
@@ -280,7 +294,7 @@ fn main() -> Result<(), ()> {
         let mut line_ends = false;
 
         for token in lex {
-            println!("{:?}", token);
+            //println!("{:?}", token);
             if token == parser::Token::LineEnd {
                 if line_ends {
                     continue;
@@ -293,9 +307,74 @@ fn main() -> Result<(), ()> {
             p.parse(token)?;
         }
 
-        let tree = p.end_of_input()?;
-        println!("\n{:?}", tree);
+        let (assigns, limits, tree) = p.end_of_input()?;
+
+        let idents = assigns.unwrap_or_default();
+        let ident_arg = Some(&idents);
+        //println!("\n{:?}", tree);
         //println!("\nRead {} bytes, scale is {}", size, scale.unwrap_or(1));
+        let mut min_x: Option<i64> = None;
+        let mut max_x: Option<i64> = None;
+        let mut min_y: Option<i64> = None;
+        let mut max_y: Option<i64> = None;
+        let mut min_z: Option<i64> = None;
+        let mut max_z: Option<i64> = None;
+
+        let mut vars = HashMap::new();
+        vars.insert('s', scale.unwrap_or(1) as f64);
+
+        for limit in &limits {
+            for dep in limit.min.var_dependencies(&ident_arg)? {
+                if dep != 's' {
+                    eprintln!("Boundaries can only refer to s, not {}", dep);
+                    return Err(Error::IllegalVarInBoundary);
+                }
+            }
+            for dep in limit.max.var_dependencies(&ident_arg)? {
+                if dep != 's' {
+                    eprintln!("Boundaries can only refer to s, not {}", dep);
+                    return Err(Error::IllegalVarInBoundary);
+                }
+            }
+            let var_arg = Some(&vars);
+            let min = limit.min.eval(&ident_arg, &var_arg)?.floor() as i64;
+            let max = limit.max.eval(&ident_arg, &var_arg)?.ceil() as i64;
+            match limit.var {
+                'x' => {
+                    min_x = Some(min);
+                    max_x = Some(max);
+                }
+                'y' => {
+                    min_y = Some(min);
+                    max_y = Some(max);
+                }
+                'z' => {
+                    min_z = Some(min);
+                    max_z = Some(max);
+                }
+                c => {
+                    eprintln!("Bounded variables are x,y,z only, not {}", c);
+                    return Err(Error::IllegarBoundedVar);
+                }
+            }
+        }
+
+        let mut unbounded = false;
+        if min_x.is_none() || max_x.is_none() {
+            unbounded = true;
+            eprintln!("x is unbounded");
+        }
+        if min_y.is_none() || max_y.is_none() {
+            unbounded = true;
+            eprintln!("y is unbounded");
+        }
+        if min_z.is_none() || max_z.is_none() {
+            unbounded = true;
+            eprintln!("z is unbounded");
+        }
+        if unbounded {
+            return Err(Error::UnboundedVar);
+        }
     }
 
     Ok(())

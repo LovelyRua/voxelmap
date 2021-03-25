@@ -1,15 +1,5 @@
-use std::collections::HashMap;
-
-#[derive(Debug, PartialEq)]
-pub enum Error {
-    UnrecognisedBinaryOperator,
-    UnrecognisedCondition,
-    UnrecognisedJunction,
-    MissingVarValue,
-    MissingIdentAssignment,
-    MissingVarMap,
-    MissingIdentMap,
-}
+use crate::error::Error;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, PartialEq)]
 pub enum FunctionType {
@@ -41,8 +31,8 @@ impl FunctionData {
 
     pub fn eval(
         &self,
-        idents: Option<&HashMap<String, Expression>>,
-        vars: Option<&HashMap<char, f64>>,
+        idents: &Option<&HashMap<String, Expression>>,
+        vars: &Option<&HashMap<char, f64>>,
     ) -> Result<f64, Error> {
         let value = self.arg.eval(idents, vars)?;
 
@@ -79,8 +69,8 @@ impl OperationData {
 
     pub fn eval(
         &self,
-        idents: Option<&HashMap<String, Expression>>,
-        vars: Option<&HashMap<char, f64>>,
+        idents: &Option<&HashMap<String, Expression>>,
+        vars: &Option<&HashMap<char, f64>>,
     ) -> Result<f64, Error> {
         let left = self.left.eval(idents, vars)?;
         let right = self.right.eval(idents, vars)?;
@@ -130,26 +120,94 @@ impl Expression {
 
     pub fn eval(
         &self,
-        idents: Option<&HashMap<String, Expression>>,
-        vars: Option<&HashMap<char, f64>>,
+        idents: &Option<&HashMap<String, Expression>>,
+        vars: &Option<&HashMap<char, f64>>,
     ) -> Result<f64, Error> {
         match self {
             Expression::Float(f) => Ok(*f),
             Expression::Function(f) => f.eval(idents, vars),
             Expression::Operation(o) => o.eval(idents, vars),
             Expression::Var(c) => {
-                let value = vars
-                    .ok_or::<Error>(Error::MissingVarMap)?
-                    .get(c)
-                    .ok_or::<Error>(Error::MissingVarValue)?;
+                let var_values = vars.as_ref().ok_or::<Error>(Error::MissingVarMap)?;
+                let value = var_values.get(c).ok_or::<Error>(Error::MissingVarValue)?;
                 Ok(*value)
             }
             Expression::Ident(s) => {
-                let referred = idents
-                    .ok_or::<Error>(Error::MissingIdentMap)?
+                let ident_exps = idents.as_ref().ok_or::<Error>(Error::MissingIdentMap)?;
+                let referred = ident_exps
                     .get(s)
                     .ok_or::<Error>(Error::MissingIdentAssignment)?;
                 referred.eval(idents, vars)
+            }
+        }
+    }
+
+    pub fn var_dependencies(
+        &self,
+        idents: &Option<&HashMap<String, Expression>>,
+    ) -> Result<HashSet<char>, Error> {
+        match self {
+            Expression::Float(_) => Ok(HashSet::new()),
+            Expression::Function(f) => f.arg.var_dependencies(idents),
+            Expression::Operation(o) => {
+                let left = o.left.var_dependencies(idents)?;
+                let right = o.right.var_dependencies(idents)?;
+                let mut result: HashSet<char> = HashSet::new();
+                for dep in left {
+                    result.insert(dep);
+                }
+                for dep in right {
+                    result.insert(dep);
+                }
+                Ok(result)
+            }
+            Expression::Var(c) => {
+                let mut result: HashSet<char> = HashSet::new();
+                result.insert(*c);
+                Ok(result)
+            }
+            Expression::Ident(s) => {
+                let ident_exps = idents.as_ref().ok_or::<Error>(Error::MissingIdentMap)?;
+                let referred = ident_exps
+                    .get(s)
+                    .ok_or::<Error>(Error::MissingIdentAssignment)?;
+                referred.var_dependencies(idents)
+            }
+        }
+    }
+
+    pub fn ident_dependencies(
+        &self,
+        idents: &Option<&HashMap<String, Expression>>,
+    ) -> Result<HashSet<String>, Error> {
+        match self {
+            Expression::Float(_) => Ok(HashSet::new()),
+            Expression::Function(f) => f.arg.ident_dependencies(idents),
+            Expression::Operation(o) => {
+                let left = o.left.ident_dependencies(idents)?;
+                let right = o.right.ident_dependencies(idents)?;
+                let mut result: HashSet<String> = HashSet::new();
+                for dep in left {
+                    result.insert(dep);
+                }
+                for dep in right {
+                    result.insert(dep);
+                }
+                Ok(result)
+            }
+            Expression::Var(_) => Ok(HashSet::new()),
+            Expression::Ident(s) => {
+                let mut result: HashSet<String> = HashSet::new();
+                result.insert(s.to_owned());
+                let ident_exps = idents.as_ref().ok_or::<Error>(Error::MissingIdentMap)?;
+                let referred = ident_exps
+                    .get(s)
+                    .ok_or::<Error>(Error::MissingIdentAssignment)?;
+                let recursive = referred.ident_dependencies(idents)?;
+                for dep in recursive {
+                    result.insert(dep);
+                }
+                Ok(result)
             }
         }
     }
@@ -171,8 +229,8 @@ impl Condition {
 
     pub fn eval(
         &self,
-        idents: Option<&HashMap<String, Expression>>,
-        vars: Option<&HashMap<char, f64>>,
+        idents: &Option<&HashMap<String, Expression>>,
+        vars: &Option<&HashMap<char, f64>>,
     ) -> Result<bool, Error> {
         let left_val = self.left.eval(idents, vars)?;
         let right_val = self.right.eval(idents, vars)?;
@@ -203,8 +261,8 @@ impl JunctionData {
 
     pub fn eval(
         &self,
-        idents: Option<&HashMap<String, Expression>>,
-        vars: Option<&HashMap<char, f64>>,
+        idents: &Option<&HashMap<String, Expression>>,
+        vars: &Option<&HashMap<char, f64>>,
     ) -> Result<bool, Error> {
         let left_val = self.left.eval(idents, vars)?;
         let right_val = self.right.eval(idents, vars)?;
@@ -237,8 +295,8 @@ impl Junction {
 
     pub fn eval(
         &self,
-        idents: Option<&HashMap<String, Expression>>,
-        vars: Option<&HashMap<char, f64>>,
+        idents: &Option<&HashMap<String, Expression>>,
+        vars: &Option<&HashMap<char, f64>>,
     ) -> Result<bool, Error> {
         match self {
             Junction::Meta(meta) => meta.eval(idents, vars),
