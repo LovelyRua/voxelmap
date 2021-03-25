@@ -1,0 +1,9 @@
+# Circle with radius s
+
+define @-s 0 - s
+
+@-s <= x <= s
+@-s <= y <= s
+@-s <= z <= s
+
+r <= s
