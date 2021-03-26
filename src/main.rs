@@ -1,5 +1,7 @@
 use clap::{crate_authors, crate_description, crate_name, crate_version, App, Arg};
 use logos::Logos;
+use nbt::encode::write_gzip_compound_tag;
+use nbt::CompoundTag;
 use pomelo::pomelo;
 use rgb::*;
 use std::collections::HashMap;
@@ -449,10 +451,15 @@ fn main() -> Result<(), error::Error> {
 
     let width: i64 = 1 + max_x - min_x;
     let height: i64 = 1 + max_y - min_y;
+    let depth: i64 = 1 + max_z - min_z;
 
     let pix_width: usize = 6 * (width as usize) + 1;
     let pix_height: usize = 6 * (height as usize) + 1;
     let pix_size: usize = pix_width * pix_height;
+
+    let schem_size: usize = (width as usize) * (height as usize) * (depth as usize);
+
+    let mut schem_block_data: Vec<i8> = Vec::with_capacity(schem_size);
 
     for z in min_z..=max_z {
         let name = format! {"{}/layer{:04}.png",output_folder,1 + z - min_z};
@@ -518,12 +525,37 @@ fn main() -> Result<(), error::Error> {
                             + pix_x] = color;
                     }
                 }
+
+                schem_block_data.push(1);
+                schem_block_data.push(if is_filled { 1 } else { 0 });
             }
         }
         lodepng::encode32_file(name, &pixels, pix_width, pix_height)?;
     }
 
-    Ok(())
+    // Schematic
+    let mut schem = CompoundTag::new();
+    schem.insert_i32("Version", 2);
+    schem.insert_i32("Data Version", 1343);
 
-    //println!("Scale was read and is <{}>", scale.unwrap_or(1));
+    schem.insert_i16("Width", width as i16);
+    schem.insert_i16("Height", depth as i16);
+    schem.insert_i16("Length", height as i16);
+    schem.insert_i32_vec("Offset", vec![min_x as i32, min_z as i32, min_y as i32]);
+
+    schem.insert_i32("PaletteMax", 2);
+
+    let mut palette_obj = CompoundTag::new();
+    palette_obj.insert_i32("minecraft:air", 0);
+    palette_obj.insert_i32("minecraft:stone", 1);
+
+    schem.insert("Palette", palette_obj);
+
+    schem.insert_i8_vec("BlockData", schem_block_data);
+
+    let mut schem_file = fs::File::create(format!("{}/{}.schem", output_folder, output_folder))?;
+
+    write_gzip_compound_tag(&mut schem_file, &schem)?;
+
+    Ok(())
 }
