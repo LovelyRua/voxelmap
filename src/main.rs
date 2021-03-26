@@ -1,7 +1,7 @@
 use clap::{crate_authors, crate_description, crate_name, crate_version, App, Arg};
 use logos::Logos;
 use nbt::encode::write_gzip_compound_tag;
-use nbt::CompoundTag;
+use nbt::{CompoundTag, Tag};
 use pomelo::pomelo;
 use rgb::*;
 use std::collections::HashMap;
@@ -457,9 +457,13 @@ fn main() -> Result<(), error::Error> {
     let pix_height: usize = 6 * (height as usize) + 1;
     let pix_size: usize = pix_width * pix_height;
 
-    let schem_size: usize = (width as usize) * (height as usize) * (depth as usize);
+    let lite_size: usize = (((width as usize) * (height as usize) * (depth as usize)) / 32) + 1;
 
-    let mut schem_block_data: Vec<i8> = Vec::with_capacity(schem_size);
+    let mut lite_block_data: Vec<i64> = Vec::with_capacity(lite_size);
+    let mut working: i64 = 0;
+    let mut counter: u8 = 0;
+    let mut total_blocks: i32 = 0;
+    let mut total_volume: i32 = 0;
 
     for z in min_z..=max_z {
         let name = format! {"{}/layer{:04}.png",output_folder,1 + z - min_z};
@@ -526,36 +530,65 @@ fn main() -> Result<(), error::Error> {
                     }
                 }
 
-                schem_block_data.push(1);
-                schem_block_data.push(if is_filled { 1 } else { 0 });
+                let new_block: i64 = if is_filled { 1 } else { 0 } << (counter * 2);
+                working |= new_block;
+                counter += 1;
+                if counter >= 32 {
+                    lite_block_data.push(working);
+                    working = 0;
+                    counter = 0;
+                }
+                total_volume += 1;
+                total_blocks += if is_filled { 1 } else { 0 };
             }
         }
         lodepng::encode32_file(name, &pixels, pix_width, pix_height)?;
     }
+    if counter != 0 {
+        lite_block_data.push(working);
+    }
 
-    // Schematic
-    let mut schem = CompoundTag::new();
-    schem.insert_i32("Version", 2);
-    schem.insert_i32("Data Version", 1343);
+    // Litematica schematic
+    let mut enclosing_size = CompoundTag::new();
+    enclosing_size.insert_i32("x", width as i32);
+    enclosing_size.insert_i32("y", depth as i32);
+    enclosing_size.insert_i32("z", height as i32);
+    let region_size = enclosing_size.clone();
+    let mut metadata = CompoundTag::new();
+    metadata.insert("EnclosingSize", enclosing_size);
+    metadata.insert_str("Author", crate_name!());
+    metadata.insert_str("Description", crate_version!());
+    metadata.insert_str("Name", output_folder);
+    metadata.insert_i32("RegionCount", 1);
+    metadata.insert_i32("TotalBlocks", total_blocks);
+    metadata.insert_i32("TotalVolume", total_volume);
+    let mut lite = CompoundTag::new();
+    lite.insert_i32("Version", 5);
+    lite.insert_i32("MinecraftDataVersion", 1343);
+    lite.insert("Metadata", metadata);
+    let mut region = CompoundTag::new();
+    region.insert("Size", region_size);
+    let mut region_position = CompoundTag::new();
+    region_position.insert_i32("x", 0);
+    region_position.insert_i32("y", 0);
+    region_position.insert_i32("z", 0);
+    region.insert("Position", region_position);
+    let mut block_state_palette: Vec<Tag> = Vec::with_capacity(2);
+    let mut air = CompoundTag::new();
+    air.insert_str("Name", "minecraft:air");
+    block_state_palette.push(Tag::from(air));
+    let mut block = CompoundTag::new();
+    block.insert_str("Name", "minecraft:stone");
+    block_state_palette.push(Tag::from(block));
+    region.insert("BlockStatePalette", block_state_palette);
+    region.insert_i64_vec("BlockStates", lite_block_data);
+    let mut regions = CompoundTag::new();
+    regions.insert(output_folder, region);
+    lite.insert("Regions", regions);
 
-    schem.insert_i16("Width", width as i16);
-    schem.insert_i16("Height", depth as i16);
-    schem.insert_i16("Length", height as i16);
-    schem.insert_i32_vec("Offset", vec![min_x as i32, min_z as i32, min_y as i32]);
+    let mut lite_file = fs::File::create(format!("{}/{}.litematic", output_folder, output_folder))?;
 
-    schem.insert_i32("PaletteMax", 2);
-
-    let mut palette_obj = CompoundTag::new();
-    palette_obj.insert_i32("minecraft:air", 0);
-    palette_obj.insert_i32("minecraft:stone", 1);
-
-    schem.insert("Palette", palette_obj);
-
-    schem.insert_i8_vec("BlockData", schem_block_data);
-
-    let mut schem_file = fs::File::create(format!("{}/{}.schem", output_folder, output_folder))?;
-
-    write_gzip_compound_tag(&mut schem_file, &schem)?;
+    write_gzip_compound_tag(&mut lite_file, &lite)?;
 
     Ok(())
 }
