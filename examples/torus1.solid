@@ -1,9 +1,7 @@
-# Circle with radius s
+# torus with radius s, inner radius 2s
 
-define @-s 0 - s
-
-5*@-s <= x <= 5*s
-5*@-s <= y <= 5*s
-@-s <= z <= s
+-5*s <= x <= 5*s
+-5*s <= y <= 5*s
+-s <= z <= s
 
 (ρ - 3*s)^2 + z^2 <= s^2

@@ -1,4 +1,5 @@
 use lodepng::Error as LPNGError;
+use std::io::Error as IOError;
 
 #[derive(Debug)]
 pub enum Error {
@@ -14,6 +15,7 @@ pub enum Error {
     IllegarBoundedVar,
     UnboundedVar,
     LodePNG(LPNGError),
+    Io(IOError),
 }
 
 impl From<()> for Error {
@@ -25,5 +27,11 @@ impl From<()> for Error {
 impl From<LPNGError> for Error {
     fn from(lode: LPNGError) -> Self {
         Error::LodePNG(lode)
+    }
+}
+
+impl From<IOError> for Error {
+    fn from(io: IOError) -> Self {
+        Error::Io(io)
     }
 }

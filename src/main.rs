@@ -11,7 +11,7 @@ mod error;
 
 macro_rules! scale_message {
     ($n:ident) => {
-        Err(format!("<{}> is not a positive integer", $n))
+        Err(format!("<{}> is not a valid scale value", $n))
     };
 }
 
@@ -81,7 +81,7 @@ pomelo! {
 
     %type #[regex("s|x|y|z|r|ρ|θ|φ", read_var)] Var char;
 
-    %type #[regex(r"@[^@ \t\f\n]+", |lex| String::from(lex.slice()))] Ident String;
+    %type #[regex(r"@[\p{Letter}\p{Number}\p{Greek}]+", |lex| String::from(lex.slice()))] Ident String;
 
     %type   #[token("set")]
             #[token("define")]
@@ -117,7 +117,7 @@ pomelo! {
             #[token("τ", |_| std::f64::consts::TAU)]
             #[regex("√2\\s", |_| std::f64::consts::SQRT_2)]
             #[regex("√(2)", |_| std::f64::consts::SQRT_2)]
-            #[regex(r"[+-]?(?:\d*\.)?\d+", |lex| lex.slice().parse())]
+            #[regex(r"(?:\d*\.)?\d+", |lex| lex.slice().parse())]
             Float f64;
 
     %type #[token("+")] Sum;
@@ -152,6 +152,7 @@ pomelo! {
             #[token("exp", |_| FunctionType::Exp)]
             #[token("ln", |_| FunctionType::Ln)]
             #[token("log", |_| FunctionType::Log)]
+            #[token("neg", |_| FunctionType::Neg)]
             Function FunctionType;
 
     %type   #[token("(")] LParen;
@@ -235,6 +236,7 @@ pomelo! {
     expr ::= expr(L) Power expr(R) { Expression::operation('^',L,R) }
     expr ::= Function(F) expr(A) { Expression::function(F,A) }
     expr ::= LParen expr(E) RParen { E }
+    expr ::= Subtraction expr(E) { Expression::function(FunctionType::Neg,E) }
     expr ::= Var(V) { Expression::var(V) }
     expr ::= Float(F) { Expression::float(F) }
     expr ::= Ident(S) { Expression::ident(S) }
@@ -256,15 +258,10 @@ fn main() -> Result<(), error::Error> {
                 .multiple(false)
                 .value_name("N")
                 .validator(|n: String| -> Result<(), String> {
-                    match n.parse::<i32>() {
-                        Ok(x) => {
-                            if x > 0 {
-                                Ok(())
-                            } else {
-                                scale_message!(n)
-                            }
-                        }
-                        Err(_) => scale_message!(n),
+                    if n.parse::<f64>().is_err() {
+                        scale_message!(n)
+                    } else {
+                        Ok(())
                     }
                 }),
         )
@@ -273,6 +270,22 @@ fn main() -> Result<(), error::Error> {
                 .short("o")
                 .long("offset")
                 .help("Offset the computation by half a block")
+                .takes_value(false)
+                .multiple(false),
+        )
+        .arg(
+            Arg::with_name("debug")
+                .short("d")
+                .long("debug")
+                .help("Show parsing steps")
+                .takes_value(false)
+                .multiple(false),
+        )
+        .arg(
+            Arg::with_name("test")
+                .short("t")
+                .long("test")
+                .help("Parses the input file, does not output")
                 .takes_value(false)
                 .multiple(false),
         )
@@ -298,184 +311,216 @@ fn main() -> Result<(), error::Error> {
                         Ok(_) => Ok(()),
                         Err(error) => Err(io_error(error, &path)),
                     }
-                }),
+                })
+                .conflicts_with("test"),
         )
         .get_matches();
 
-    let scale = matches.value_of("scale").map(|s| s.parse::<i32>().unwrap());
+    let scale = matches.value_of("scale").map(|s| s.parse::<f64>().unwrap());
 
     let mut object_description = fs::File::open(matches.value_of("FILE").unwrap()).unwrap();
 
-    let output_folder = matches.value_of("OUTPUT_DIR").unwrap();
-
     let offset = matches.is_present("offset");
+    let debug = matches.is_present("debug");
+    let test = matches.is_present("test");
+
+    let output_folder = if test {
+        ""
+    } else {
+        matches.value_of("OUTPUT_DIR").unwrap()
+    };
 
     let mut data = String::new();
 
-    if object_description.read_to_string(&mut data).is_ok() {
-        let lex = parser::Token::lexer(&data);
+    let read_count = object_description.read_to_string(&mut data)?;
 
-        let mut p = parser::Parser::new();
+    if debug {
+        println!(
+            "\nRead {} bytes, scale is {}",
+            read_count,
+            scale.unwrap_or(1.0_f64)
+        );
+    }
 
-        let mut line_ends = false;
+    let lex = parser::Token::lexer(&data);
 
-        for token in lex {
-            //println!("{:?}", token);
-            if token == parser::Token::LineEnd {
-                if line_ends {
-                    continue;
-                } else {
-                    line_ends = true;
-                }
+    let mut p = parser::Parser::new();
+
+    let mut line_ends = false;
+
+    for token in lex {
+        if debug {
+            println!("{:?}", token);
+        }
+        if token == parser::Token::LineEnd {
+            if line_ends {
+                continue;
             } else {
-                line_ends = false;
+                line_ends = true;
             }
-            p.parse(token)?;
+        } else {
+            line_ends = false;
         }
+        p.parse(token)?;
+    }
 
-        let (assigns, limits, tree) = p.end_of_input()?;
+    let (assigns, limits, tree) = p.end_of_input()?;
 
-        let idents = assigns.unwrap_or_default();
-        let ident_arg = Some(&idents);
-        //println!("\n{:?}", tree);
-        //println!("\nRead {} bytes, scale is {}", size, scale.unwrap_or(1));
-        let mut min_x: Option<i64> = None;
-        let mut max_x: Option<i64> = None;
-        let mut min_y: Option<i64> = None;
-        let mut max_y: Option<i64> = None;
-        let mut min_z: Option<i64> = None;
-        let mut max_z: Option<i64> = None;
+    let idents = assigns.unwrap_or_default();
+    let ident_arg = Some(&idents);
+    let mut min_x: Option<i64> = None;
+    let mut max_x: Option<i64> = None;
+    let mut min_y: Option<i64> = None;
+    let mut max_y: Option<i64> = None;
+    let mut min_z: Option<i64> = None;
+    let mut max_z: Option<i64> = None;
 
-        let mut vars = HashMap::new();
-        vars.insert('s', scale.unwrap_or(1) as f64);
+    let mut vars = HashMap::new();
+    vars.insert('s', scale.unwrap_or(1_f64));
 
-        for limit in &limits {
-            for dep in limit.min.var_dependencies(&ident_arg)? {
-                if dep != 's' {
-                    eprintln!("Boundaries can only refer to s, not {}", dep);
-                    return Err(Error::IllegalVarInBoundary);
-                }
-            }
-            for dep in limit.max.var_dependencies(&ident_arg)? {
-                if dep != 's' {
-                    eprintln!("Boundaries can only refer to s, not {}", dep);
-                    return Err(Error::IllegalVarInBoundary);
-                }
-            }
-            let var_arg = Some(&vars);
-            let min =
-                (limit.min.eval(&ident_arg, &var_arg)?.floor() as i64) - if offset { 1 } else { 0 };
-            let max = limit.max.eval(&ident_arg, &var_arg)?.ceil() as i64;
-            match limit.var {
-                'x' => {
-                    min_x = Some(min);
-                    max_x = Some(max);
-                }
-                'y' => {
-                    min_y = Some(min);
-                    max_y = Some(max);
-                }
-                'z' => {
-                    min_z = Some(min);
-                    max_z = Some(max);
-                }
-                c => {
-                    eprintln!("Bounded variables are x,y,z only, not {}", c);
-                    return Err(Error::IllegarBoundedVar);
-                }
+    for limit in &limits {
+        for dep in limit.min.var_dependencies(&ident_arg)? {
+            if dep != 's' {
+                eprintln!("Boundaries can only refer to s, not {}", dep);
+                return Err(Error::IllegalVarInBoundary);
             }
         }
-
-        let mut unbounded = false;
-        if min_x.is_none() || max_x.is_none() {
-            unbounded = true;
-            eprintln!("x is unbounded");
+        for dep in limit.max.var_dependencies(&ident_arg)? {
+            if dep != 's' {
+                eprintln!("Boundaries can only refer to s, not {}", dep);
+                return Err(Error::IllegalVarInBoundary);
+            }
         }
-        if min_y.is_none() || max_y.is_none() {
-            unbounded = true;
-            eprintln!("y is unbounded");
+        let var_arg = Some(&vars);
+        let min =
+            (limit.min.eval(&ident_arg, &var_arg)?.floor() as i64) - if offset { 1 } else { 0 };
+        let max = limit.max.eval(&ident_arg, &var_arg)?.ceil() as i64;
+        match limit.var {
+            'x' => {
+                min_x = Some(min);
+                max_x = Some(max);
+            }
+            'y' => {
+                min_y = Some(min);
+                max_y = Some(max);
+            }
+            'z' => {
+                min_z = Some(min);
+                max_z = Some(max);
+            }
+            c => {
+                eprintln!("Bounded variables are x,y,z only, not {}", c);
+                return Err(Error::IllegarBoundedVar);
+            }
         }
-        if min_z.is_none() || max_z.is_none() {
-            unbounded = true;
-            eprintln!("z is unbounded");
-        }
-        if unbounded {
-            return Err(Error::UnboundedVar);
-        }
+    }
 
-        let min_x: i64 = min_x.unwrap();
-        let max_x: i64 = max_x.unwrap();
-        let min_y: i64 = min_y.unwrap();
-        let max_y: i64 = max_y.unwrap();
-        let min_z: i64 = min_z.unwrap();
-        let max_z: i64 = max_z.unwrap();
+    let mut unbounded = false;
+    if min_x.is_none() || max_x.is_none() {
+        unbounded = true;
+        eprintln!("x is unbounded");
+    }
+    if min_y.is_none() || max_y.is_none() {
+        unbounded = true;
+        eprintln!("y is unbounded");
+    }
+    if min_z.is_none() || max_z.is_none() {
+        unbounded = true;
+        eprintln!("z is unbounded");
+    }
+    if unbounded {
+        return Err(Error::UnboundedVar);
+    }
 
-        let width: i64 = 1 + max_x - min_x;
-        let height: i64 = 1 + max_y - min_y;
+    if debug {
+        println!("\n{:?}", tree);
+    }
 
-        let pix_width: usize = 6 * (width as usize) + 1;
-        let pix_height: usize = 6 * (height as usize) + 1;
-        let pix_size: usize = pix_width * pix_height;
+    if test {
+        return Ok(());
+    }
 
-        for z in min_z..=max_z {
-            let name = format! {"{}/layer{:04}.png",output_folder,1 + z - min_z};
+    let min_x: i64 = min_x.unwrap();
+    let max_x: i64 = max_x.unwrap();
+    let min_y: i64 = min_y.unwrap();
+    let max_y: i64 = max_y.unwrap();
+    let min_z: i64 = min_z.unwrap();
+    let max_z: i64 = max_z.unwrap();
 
-            let filled_in = RGBA8::new(0, 0, 0, 255); // Black
-            let empty = RGBA8::new(255, 255, 255, 255); // White
-            let multiple_filled_in = RGBA8::new(0, 0, 255, 255); // Blue
-            let multiple_empty = RGBA8::new(255, 255, 0, 255); // Yellow
-            let grid = RGBA8::new(255, 128, 128, 255); // Coral (Grid)
+    let width: i64 = 1 + max_x - min_x;
+    let height: i64 = 1 + max_y - min_y;
 
-            let mut pixels: Vec<RGBA8> = Vec::with_capacity(pix_size);
+    let pix_width: usize = 6 * (width as usize) + 1;
+    let pix_height: usize = 6 * (height as usize) + 1;
+    let pix_size: usize = pix_width * pix_height;
 
-            pixels.resize(pix_size, grid);
+    for z in min_z..=max_z {
+        let name = format! {"{}/layer{:04}.png",output_folder,1 + z - min_z};
 
-            for y in min_y..=max_y {
-                let square_start_y = 6 * (y - min_y) as usize;
-                let grid_y = y.abs() % 10 == 0;
-                for x in min_x..=max_x {
-                    let x_f: f64 = (x as f64) + if offset { 0.5_f64 } else { 0_f64 };
-                    let y_f: f64 = (y as f64) + if offset { 0.5_f64 } else { 0_f64 };
-                    let z_f: f64 = (z as f64) + if offset { 0.5_f64 } else { 0_f64 };
-                    let rho: f64 = (x_f.powi(2) + y_f.powi(2)).sqrt();
-                    let phi: f64 = y_f.atan2(x_f);
-                    let r: f64 = (z_f.powi(2) + rho.powi(2)).sqrt();
-                    let tht: f64 = (z_f / rho).atan();
+        let filled_in = RGBA8::new(0, 0, 0, 255); // Black
+        let empty = RGBA8::new(255, 255, 255, 255); // White
+        let multiple_filled_in = RGBA8::new(0, 0, 255, 255); // Blue
+        let multiple_empty = RGBA8::new(255, 255, 0, 255); // Yellow
+        let grid = RGBA8::new(255, 128, 128, 255); // Coral (Grid)
 
-                    vars.insert('x', x_f);
-                    vars.insert('y', y_f);
-                    vars.insert('z', z_f);
-                    vars.insert('ρ', rho);
-                    vars.insert('φ', phi);
-                    vars.insert('r', r);
-                    vars.insert('θ', tht);
+        let mut pixels: Vec<RGBA8> = Vec::with_capacity(pix_size);
 
-                    let var_arg = Some(&vars);
+        pixels.resize(pix_size, grid);
 
-                    let square_start_x = 6 * (x - min_x) as usize;
+        for y in min_y..=max_y {
+            let square_start_y = 6 * (y - min_y) as usize;
+            let grid_y = y.abs() % 10 == 0;
+            for x in min_x..=max_x {
+                let x_f: f64 = (x as f64) + if offset { 0.5_f64 } else { 0_f64 };
+                let y_f: f64 = (y as f64) + if offset { 0.5_f64 } else { 0_f64 };
+                let z_f: f64 = (z as f64) + if offset { 0.5_f64 } else { 0_f64 };
+                let rho: f64 = (x_f.powi(2) + y_f.powi(2)).sqrt();
+                let r: f64 = (z_f.powi(2) + rho.powi(2)).sqrt();
+                let tht: f64 = (z_f / rho).atan();
 
-                    let grid = if grid_y { true } else { x.abs() % 10 == 0 };
-                    let is_filled = tree.eval(&ident_arg, &var_arg)?;
+                let phi: f64;
 
-                    let color = match (is_filled, grid) {
-                        (false, false) => empty,
-                        (false, true) => multiple_empty,
-                        (true, false) => filled_in,
-                        (true, true) => multiple_filled_in,
-                    };
+                if rho < 2_f64 * f64::EPSILON {
+                    phi = f64::NAN;
+                } else if y_f >= 0_f64 {
+                    phi = (x_f / rho).acos();
+                } else {
+                    phi = -((x_f / rho).acos());
+                }
 
-                    for pix_x in 0..5 {
-                        for pix_y in 0..5 {
-                            pixels[(1 + square_start_y + pix_y) * pix_width
-                                + 1
-                                + square_start_x
-                                + pix_x] = color;
-                        }
+                vars.insert('x', x_f);
+                vars.insert('y', y_f);
+                vars.insert('z', z_f);
+                vars.insert('ρ', rho);
+                vars.insert('φ', phi);
+                vars.insert('r', r);
+                vars.insert('θ', tht);
+
+                let var_arg = Some(&vars);
+
+                let square_start_x = 6 * (x - min_x) as usize;
+
+                let grid = if grid_y { true } else { x.abs() % 10 == 0 };
+                let is_filled = tree.eval(&ident_arg, &var_arg)?;
+
+                let color = match (is_filled, grid) {
+                    (false, false) => empty,
+                    (false, true) => multiple_empty,
+                    (true, false) => filled_in,
+                    (true, true) => multiple_filled_in,
+                };
+
+                for pix_x in 0..5 {
+                    for pix_y in 0..5 {
+                        pixels[(1 + square_start_y + pix_y) * pix_width
+                            + 1
+                            + square_start_x
+                            + pix_x] = color;
                     }
                 }
             }
-            lodepng::encode32_file(name, &pixels, pix_width, pix_height)?;
         }
+        lodepng::encode32_file(name, &pixels, pix_width, pix_height)?;
     }
 
     Ok(())

@@ -15,6 +15,7 @@ pub enum FunctionType {
     Exp,
     Ln,
     Log,
+    Neg,
 }
 
 #[derive(Debug)]
@@ -49,6 +50,7 @@ impl FunctionData {
             FunctionType::Exp => Ok(value.exp()),
             FunctionType::Ln => Ok(value.ln()),
             FunctionType::Log => Ok(value.log10()),
+            FunctionType::Neg => Ok(-value),
         }
     }
 }
