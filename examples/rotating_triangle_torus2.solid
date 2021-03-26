@@ -1,0 +1,16 @@
+# Rotating triangle torus
+
+define @angle0 2 * φ
+define @angle1 2 * φ + ⅓π
+define @angle2 2 * φ + 2 * ⅓π
+define @angle3 2 * φ + π
+define @angle4 2 * φ + π + ⅓π
+define @angle5 2 * φ + 2π - ⅓π
+
+-5 * s < x < 5 * s
+-5 * s < y < 5 * s
+- s < z < s
+
+(ρ - (3 * s) - s * (cos @angle0)) * (cos @angle1) + (z - s * (sin @angle0)) * (sin @angle1) < 0
+(ρ - (3 * s) - s * (cos @angle2)) * (cos @angle3) + (z - s * (sin @angle2)) * (sin @angle3) < 0
+(ρ - (3 * s) - s * (cos @angle4)) * (cos @angle5) + (z - s * (sin @angle4)) * (sin @angle5) < 0

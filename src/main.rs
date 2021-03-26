@@ -163,7 +163,7 @@ pomelo! {
 
     %type   #[regex(r"\n+")] LineEnd;
 
-    %type   #[regex("\\\\n", logos::skip)]
+    %type   #[regex(r"\\\n", logos::skip)]
             #[regex("#.*\\n", logos::skip)]
             #[regex("//.*\\n", logos::skip)]
             #[regex(r"[ \t\f]+", logos::skip)]
