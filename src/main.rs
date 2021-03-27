@@ -268,6 +268,14 @@ fn main() -> Result<(), error::Error> {
                 }),
         )
         .arg(
+            Arg::with_name("block")
+                .short("b")
+                .long("block")
+                .help("The minecraft block to be used in the Litematica output, defaults to minecraft:stone")
+                .takes_value(true)
+                .multiple(false),
+        )
+        .arg(
             Arg::with_name("offset")
                 .short("o")
                 .long("offset")
@@ -563,7 +571,7 @@ fn main() -> Result<(), error::Error> {
     metadata.insert_i32("TotalBlocks", total_blocks);
     metadata.insert_i32("TotalVolume", total_volume);
     let mut lite = CompoundTag::new();
-    lite.insert_i32("Version", 5);
+    lite.insert_i32("Version", 4);
     lite.insert_i32("MinecraftDataVersion", 1343);
     lite.insert("Metadata", metadata);
     let mut region = CompoundTag::new();
@@ -578,7 +586,7 @@ fn main() -> Result<(), error::Error> {
     air.insert_str("Name", "minecraft:air");
     block_state_palette.push(Tag::from(air));
     let mut block = CompoundTag::new();
-    block.insert_str("Name", "minecraft:stone");
+    block.insert_str("Name",matches.value_of("block").unwrap_or("minecraft:stone"));
     block_state_palette.push(Tag::from(block));
     region.insert("BlockStatePalette", block_state_palette);
     region.insert_i64_vec("BlockStates", lite_block_data);
