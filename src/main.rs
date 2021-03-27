@@ -83,7 +83,7 @@ pomelo! {
 
     %type #[regex("s|x|y|z|r|ρ|θ|φ", read_var)] Var char;
 
-    %type #[regex(r"@[\p{Letter}\p{Number}\p{Greek}]+", |lex| String::from(lex.slice()))] Ident String;
+    %type #[regex(r"@[\p{Letter}\p{Number}\p{Greek}_]+", |lex| String::from(lex.slice()))] Ident String;
 
     %type   #[token("set")]
             #[token("define")]
