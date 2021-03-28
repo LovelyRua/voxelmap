@@ -46,6 +46,7 @@ The output consists of a series of images, each depicting a layer of the solid, 
 | `torus1.solid` | Torus | A torus with a tube radius of s, and a hole radius of 2 * s |
 | `ramp.solid` | Ramp | A spiraling ramp |
 | `helix1.solid` | Helix | A helix |
+| `hhelix1.solid` | Hollow Helix | A hollow helix |
 | `rotating_triangle_torus.solid` | RTT | A triangle rotating 2π around the z axis |
 | `hollow_rtt.solid` | RTT | A hollow triangle rotating 2π around the z axis |
 | `rotating_triangle_torus2.solid` | RTT | A triangle rotating 4π around the z axis |
