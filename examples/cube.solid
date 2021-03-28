@@ -1,0 +1,110 @@
+# Cube bounding box size:
+
+# Figure 1:
+#       _*_         -
+#     _/ | \_       ^
+#   _/   |   \_     |
+#  *     |     *    h
+#  |     |     |    e
+#  |    _*_    |    i
+#  |  _/   \_  |    g
+#  |_/       \_|    h
+#  *_         _*    t
+#    \_     _/      |
+#      \_ _/        v
+#        *          -
+#
+#  |<--width-->| 
+
+# From this diagram, you can tell that the width is the diagonal of the square.
+# We know as a corollary of Pythagoras's theorem that the diagonal of a square
+# of side s is s * √2
+
+define @width s * √2
+
+# Figure 2:
+#          _*__         -
+#         /    \__      ^
+#       _/        \__   d
+#     _*__          _*  e
+#   _/    \__      /    p
+#  *__       \__ _/     t
+#     \__      _*       h
+#        \__ _/         v
+#           *           -
+#
+#  |<----height----->|
+
+# From this diagram, you can tell that the depth is the diagonal of the cube.
+# From Pythagoras's theorem we know that the diagonal of a cube of side s is
+# √(((√2)^2)s^2 + s^2) = s * √3
+
+define @depth s * √3
+
+# If we consider the x = 0 section of the image above, we get the following:
+# Figure 3:
+#          _*__         -
+#         /    \__      ^
+#       _/  |     \__   d
+#     _/    b       _*  e
+#   _/      |      /    p
+#  *__ -a- -*    _/     t
+#     \__   |  _/       h
+#        \__c_/         v
+#           *           -
+#
+#  |<----height----->|
+
+# We know that:
+# a^2 + b^2 = (s * √2)^2
+# a^2 + c^2 = s
+# b + c = s * √3
+
+# From that, we get that a = s * √(2/3), b = (2*s)/(√3), c = s/(√3)
+# And we know that height = 2 * a
+
+define @half_height s * √(2/3)
+
+# Cube bounding box position:
+
+# Considering that the cube's center is the origin, we just need to negate and
+# half the bounding box sizes to get the minimum boundaries for each variable.
+-@width / 2 < x < @width / 2
+-@half_height < y < @half_height
+-@depth / 2 < z < @depth / 2
+
+# The cube is the intersection of 6 semi-spaces.
+# Each semi-space is defined by an inequality based on the plane that defines
+# its boundary.
+# The plane equations are achieved through a point belonging to the plane, as
+# well as a vector normal to the plane.
+
+# The easiest plane to construct is the one that is invariant in the x
+# dimension, that is, parallel to the x axis.
+
+# For ease of calculation, the point used is the point (0,0,@half_height).
+# The vector used will have the coordinates (0,-a,c) 
+
+# This means the plane equation starts out as:
+# -a*y + c*(z-((s * √3)/2)) <= 0
+# Which can be simplified to:
+# -a*y + c*z <= (s^2)/2
+# Given that a and c are both expressed as functions of s, we can factor out
+# the s and get the following:
+# y * (-√(2/3)) + z * √(1/3) <= s / 2
+
+# By using the same point and rotating the vector by +-120 degrees or +-2*pi/3
+# radians, we get the following two plane inequalities.
+# (-(√2)/2) * x + y * √(1/6) + z * √(1/3) <= s / 2
+# ((√2)/2) * x + y * √(1/6) + z * √(1/3) <= s / 2
+
+# By replacing the point with (0,0,-@half_height) and scaling each of the
+# three vectors by (-1), we get the remaining three plane inequalities.
+
+y * (-√(2/3)) + z * √(1/3) <= s / 2
+(-(√2)/2) * x + y * √(1/6) + z * √(1/3) <= s / 2
+((√2)/2) * x + y * √(1/6) + z * √(1/3) <= s / 2
+
+y * √(2/3) - z * √(1/3) <= s / 2
+(-(√2)/2) * x - y * √(1/6) - z * √(1/3) <= s / 2
+((√2)/2) * x - y * √(1/6) - z * √(1/3) <= s / 2
