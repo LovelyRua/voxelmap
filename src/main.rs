@@ -260,11 +260,12 @@ fn main() -> Result<(), error::Error> {
                 .multiple(false)
                 .value_name("N")
                 .validator(|n: String| -> Result<(), String> {
-                    if n.parse::<f64>().is_err() {
-                        scale_message!(n)
-                    } else {
-                        Ok(())
+                    if let Ok(scale) = n.parse::<f64>() {
+                        if scale >= 0_f64 {
+                            return Ok(());
+                        }
                     }
+                    scale_message!(n)
                 }),
         )
         .arg(
@@ -586,7 +587,10 @@ fn main() -> Result<(), error::Error> {
     air.insert_str("Name", "minecraft:air");
     block_state_palette.push(Tag::from(air));
     let mut block = CompoundTag::new();
-    block.insert_str("Name",matches.value_of("block").unwrap_or("minecraft:stone"));
+    block.insert_str(
+        "Name",
+        matches.value_of("block").unwrap_or("minecraft:stone"),
+    );
     block_state_palette.push(Tag::from(block));
     region.insert("BlockStatePalette", block_state_palette);
     region.insert_i64_vec("BlockStates", lite_block_data);
