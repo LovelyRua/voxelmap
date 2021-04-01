@@ -1,0 +1,10 @@
+# Tetrahedron
+
+-s < x < s
+-s < y < s
+-s < z < s
+
+(x - s) + (y - s) - (z - s) < 0
+(x - s) - (y + s) + (z + s) < 0
+-(x + s) + (y - s) + (z + s) < 0
+-(x + s) - (y + s) - (z - s) < 0

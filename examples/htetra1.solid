@@ -1,0 +1,16 @@
+# Hollow Tetrahedron
+
+define @ns s - 2
+
+-s < x < s
+-s < y < s
+-s < z < s
+
+{(x - s) + (y - s) - (z - s) < 0 ∧ \
+(x - s) - (y + s) + (z + s) < 0 ∧ \
+-(x + s) + (y - s) + (z + s) < 0 ∧ \
+-(x + s) - (y + s) - (z - s) < 0} ⊻ \
+{(x - @ns) + (y - @ns) - (z - @ns) < 0 ∧ \
+(x - @ns) - (y + @ns) + (z + @ns) < 0 ∧ \
+-(x + @ns) + (y - @ns) + (z + @ns) < 0 ∧ \
+-(x + @ns) - (y + @ns) - (z - @ns) < 0}

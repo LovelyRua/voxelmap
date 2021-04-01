@@ -44,6 +44,8 @@ The output consists of a series of images, each depicting a layer of the solid, 
 | --- | --- | --- |
 | `cube.solid` | Cube | A cube stood on its vertex |
 | `hcube.solid` | Hollow Cube | A hollow cube stood on its vertex |
+| `tetrahedron1.solid` | Tetrahedron | A tetrahedron stood on its edge |
+| `htetra1.solid` | Hollow Teterahedron | A hollow tetrahedron stood on its edge |
 | `sphere.solid` | Sphere | A sphere of radius s |
 | `torus1.solid` | Torus | A torus with a tube radius of s, and a hole radius of 2 * s |
 | `ramp.solid` | Ramp | A spiraling ramp |
