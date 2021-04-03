@@ -1,0 +1,97 @@
+# Tetrahedron
+
+# Tetrahedron bounding box size:
+
+# Figure 1: Side View
+#
+#       *_        -
+#      /  \       ^
+#     / |  \_
+#    /  |    \    depth
+#   /   |     \_  v
+#  *----0-------* -
+#
+# Figure 2: Top View
+#
+#  *_B
+#  | \_
+#  |\  \_
+#  | \   \_
+#  |  \    \_
+#  |   \A    \__
+#  |<a> *-<b>-__*D
+#  |   /    _/
+#  |  /   _/
+#  | /  _/
+#  |/ _/
+#  |_/
+#  *C
+
+# From these diagrams, you can tell that the width is the height of an
+# equilateral triangle. If we assume the edge of the tetrahedron is s, then:
+
+define @half_height s / 2
+
+# For the depth, a few calculations are necessary:
+#
+# a + b = s * sin(⅓π)
+# a² + (s/2)² = b²
+define @a (s/2)*tan(⅙π)
+define @b s * (sin(⅓π) - tan(⅙π)/2)
+# a² + d² = (s*sin(⅓π))²
+define @depth s * sqrt((sin(⅓π))^2 - ((1/2)*tan(⅙π))^2)
+
+# Considering that the origin is in the center of the base, the min x is -a,
+# the min y is -s/2, and the min z is 0
+-@a < x < @b
+-@half_height < y < @half_height
+0 < z < @depth
+
+# A can be given by:
+#
+# (0,0,depth)
+
+# B and C can be given by:
+#
+# (-a,±half_height,0)
+
+# D can be given by:
+#
+# (b,0,0)
+
+# The tetrahedron can be given by the intersection of 4 semi-spaces.
+# However, one of the semi-spaces is z >= 0, which is implicit in the 
+# declaration of the z boundaries, so it will not require a condition.
+
+# Cross Product Cheatsheet
+#
+# a ⨯ b = | i   j   k   |
+#         | ax  ay  az  |
+#         | bx  by  bz  |
+#
+#       = (ay bz - az by, az bx - ax bz, ax by - ay bx)
+
+# The normal vector for the plane ABC is the cross product of AB and AC
+#
+# AB = (-a, half_height, -depth)
+# AC = (-a, -half_height, -depth)
+#
+# vABC = (half_height * (-depth) - (-depth) * (-half_height),
+#	(-depth) * (-a) - (-a) * (-depth),
+#	(-a) * (-half_height) - half_height * (-a)) =
+#	(- s * depth, 0, s * a)
+
+x * (- s * @depth) + (z - @depth) * (s * @a) ≤ 0
+
+# The normal vector for the plane ADB is the cross product of AD and AB
+#
+# AD = (b,0,-depth)
+# AB = (-a, half_height, -depth)
+#
+# vABD = (depth * half_height, depth * a + b * depth, b * half_height)
+x * @depth * @half_height + y * @depth * (@a + @b) + (z - @depth) * @b * @half_height ≤ 0
+
+# The normal vector for the plane ACD is equal to the previous one but
+# reflected on the y axis. Thus, we only have to flip a plus to a minus.
+#                         v
+x * @depth * @half_height - y * @depth * (@a + @b) + (z - @depth) * @b * @half_height ≤ 0

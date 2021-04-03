@@ -1,0 +1,25 @@
+# Hollow Octahedron
+
+define @ns s - 2
+
+-s < x < s
+-s < y < s
+-s < z < s
+
+{x + y + (z - s) < 0 ∧ \
+x - y + (z - s) < 0 ∧ \
+-x + y + (z - s) < 0 ∧ \
+-x - y + (z - s) < 0 ∧ \
+x + y - (z + s) < 0 ∧ \
+x - y - (z + s) < 0 ∧ \
+-x + y - (z + s) < 0 ∧ \
+-x - y - (z + s) < 0} \
+⊻ \
+{x + y + (z - @ns) < 0 ∧ \
+x - y + (z - @ns) < 0 ∧ \
+-x + y + (z - @ns) < 0 ∧ \
+-x - y + (z - @ns) < 0 ∧ \
+x + y - (z + @ns) < 0 ∧ \
+x - y - (z + @ns) < 0 ∧ \
+-x + y - (z + @ns) < 0 ∧ \
+-x - y - (z + @ns) < 0}

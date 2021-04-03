@@ -1,0 +1,14 @@
+# Octahedron
+
+-s < x < s
+-s < y < s
+-s < z < s
+
+x + y + (z - s) < 0
+x - y + (z - s) < 0
+-x + y + (z - s) < 0
+-x - y + (z - s) < 0
+x + y - (z + s) < 0
+x - y - (z + s) < 0
+-x + y - (z + s) < 0
+-x - y - (z + s) < 0
