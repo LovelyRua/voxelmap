@@ -1,0 +1,60 @@
+# Tetrahedron
+
+# Tetrahedron bounding box size:
+
+# Figure 1: Side View
+#
+#       *_        -
+#      /  \       ^
+#     / |  \_
+#    /  |    \    depth
+#   /   |     \_  v
+#  *----0-------* -
+#
+# Figure 2: Top View
+#
+#  *_B
+#  | \_
+#  |\  \_
+#  | \   \_
+#  |  \    \_
+#  |   \A    \__
+#  |<a> *-<b>-__*D
+#  |   /    _/
+#  |  /   _/
+#  | /  _/
+#  |/ _/
+#  |_/
+#  *C
+
+# From these diagrams, you can tell that the width is the height of an
+# equilateral triangle. If we assume the edge of the tetrahedron is s, then:
+
+define @ns s - 4
+define @half_height s / 2
+
+# For the depth, a few calculations are necessary:
+#
+# a + b = s * sin(⅓π)
+# a² + (s/2)² = b²
+define @a (s/2)*tan(⅙π)
+define @na (@ns/2)*tan(⅙π)
+define @b s * (sin(⅓π) - tan(⅙π)/2)
+# a² + d² = (s*sin(⅓π))²
+define @depth s * sqrt((sin(⅓π))^2 - ((1/2)*tan(⅙π))^2)
+define @ndepth @ns * sqrt((sin(⅓π))^2 - ((1/2)*tan(⅙π))^2)
+
+# Considering that the origin is in the center of the base, the min x is -a,
+# the min y is -s/2, and the min z is 0
+-@a < x < @b
+-@half_height < y < @half_height
+0 < z < @depth
+
+{{ρ ≤ @a * sec(φ - ⅓π) * (1 - z/@depth) ∧ φ ≥ 0 ∧ φ ≤ 2 * ⅓π} ∨ \
+{ρ ≤ @a * sec(φ - π) * (1 - z/@depth) ∧ {φ ≥ 2 * ⅓π ∨ φ ≤ -2 * ⅓π}} ∨ \
+{ρ ≤ @a * sec(φ + ⅓π) * (1 - z/@depth) ∧ φ ≤ 0 ∧ φ ≥ -2 * ⅓π} ∨ ρ = 0} \
+⊻ \
+{z ≥ 1 ∧ z ≤ @ndepth ∧ \
+{{ρ ≤ @na * sec(φ - ⅓π) * (1 - z/@ndepth) ∧ φ ≥ 0 ∧ φ ≤ 2 * ⅓π} ∨ \
+{ρ ≤ @na * sec(φ - π) * (1 - z/@ndepth) ∧ {φ ≥ 2 * ⅓π ∨ φ ≤ -2 * ⅓π}} ∨ \
+{ρ ≤ @na * sec(φ + ⅓π) * (1 - z/@ndepth) ∧ φ ≤ 0 ∧ φ ≥ -2 * ⅓π} ∨ ρ = 0}}

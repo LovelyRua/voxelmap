@@ -48,6 +48,8 @@ The output consists of a series of images, each depicting a layer of the solid, 
 | `htetra1.solid` | Hollow Tetrahedron | A hollow tetrahedron stood on its edge |
 | `tetrahedron2.solid` | Tetrahedron | A tetrahedron stood on its base/vertex |
 | `htetra2.solid` | Hollow Tetrahedron | A hollow tetrahedron stood on its base/vertex |
+| `tetrahedron3.solid` | Tetrahedron | A tetrahedron stood on its base/vertex |
+| `htetra3.solid` | Hollow Tetrahedron | A hollow tetrahedron stood on its base/vertex |
 | `octahedron1.solid` | Octahedron | An octaheron stood on its vertex |
 | `hoctahedron1.solid` | Hollow Octahedron | A hollow octahedron stood on its vertex |
 | `sphere.solid` | Sphere | A sphere of radius s |
