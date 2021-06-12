@@ -1,0 +1,12 @@
+# Lumpy orb with 6 lobes and mean radius s
+
+define @expression1 s * (1 + 0.1 * sin(6*φ + (2 * z * π / s)) * sin(6 * θ))
+
+-(s * 1.1) ≤ x ≤ s * 1.1
+-(s * 1.1) ≤ y ≤ s * 1.1
+-(s * 1.1) ≤ z ≤ s * 1.1
+
+{ρ < 1 ∨ \
+r ≤ @expression1 } xor \
+{{ρ < 1 ∧ abs(z) ≤ s * 1.1 - 2} ∨ \
+r ≤ @expression1 - 2}
