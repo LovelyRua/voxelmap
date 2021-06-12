@@ -6,7 +6,7 @@ use pomelo::pomelo;
 use rgb::*;
 use std::collections::HashMap;
 use std::fs;
-use std::io::{Error, ErrorKind, Read};
+use std::io::{Error, ErrorKind, Read, Write};
 
 mod astree;
 mod error;
@@ -477,14 +477,14 @@ fn main() -> Result<(), error::Error> {
     let mut total_blocks: i32 = 0;
     let mut total_volume: i32 = 0;
 
+    let filled_in = RGBA8::new(0, 0, 0, 255); // Black
+    let empty = RGBA8::new(255, 255, 255, 255); // White
+    let multiple_filled_in = RGBA8::new(0, 0, 255, 255); // Blue
+    let multiple_empty = RGBA8::new(255, 255, 0, 255); // Yellow
+    let grid = RGBA8::new(255, 128, 128, 255); // Coral (Grid)
+
     for z in min_z..=max_z {
         let name = format! {"{}/layer{:04}.png",output_folder,1 + z - min_z};
-
-        let filled_in = RGBA8::new(0, 0, 0, 255); // Black
-        let empty = RGBA8::new(255, 255, 255, 255); // White
-        let multiple_filled_in = RGBA8::new(0, 0, 255, 255); // Blue
-        let multiple_empty = RGBA8::new(255, 255, 0, 255); // Yellow
-        let grid = RGBA8::new(255, 128, 128, 255); // Coral (Grid)
 
         let mut pixels: Vec<RGBA8> = Vec::with_capacity(pix_size);
 
@@ -556,9 +556,92 @@ fn main() -> Result<(), error::Error> {
         }
         lodepng::encode32_file(name, &pixels, pix_width, pix_height)?;
     }
+
     if counter != 0 {
         lite_block_data.push(working);
     }
+
+    let mut manif_file = fs::File::create(format! {"{}/manifest.txt",output_folder})?;
+    let stacks = if total_blocks % 64 == 0 {
+        total_blocks / 64
+    } else {
+        1 + total_blocks / 64
+    };
+    let chests = if stacks % 27 == 0 {
+        stacks / 27
+    } else {
+        1 + stacks / 27
+    };
+    let doubles = if chests % 2 == 0 {
+        chests / 2
+    } else {
+        1 + chests / 2
+    };
+    writeln!(manif_file, "Rounded up totals:")?;
+    writeln!(
+        manif_file,
+        "{} double chest{}",
+        doubles,
+        if doubles == 1 { "" } else { "s" }
+    )?;
+    writeln!(
+        manif_file,
+        "or {} chest{}",
+        chests,
+        if chests == 1 { "" } else { "s" }
+    )?;
+    writeln!(
+        manif_file,
+        "or {} stack{}",
+        stacks,
+        if stacks == 1 { "" } else { "s" }
+    )?;
+    writeln!(
+        manif_file,
+        "or {} block{}\n",
+        total_blocks,
+        if total_blocks == 1 { "" } else { "s" }
+    )?;
+    let doubles = total_blocks / (64 * 54);
+    let chests = (total_blocks % (64 * 54)) / (27 * 64);
+    let stacks = (total_blocks % (64 * 27)) / 64;
+    let blocks = total_blocks % 64;
+    writeln!(manif_file, "Exact compound number of blocks:")?;
+    writeln!(
+        manif_file,
+        "{} double chest{}",
+        doubles,
+        if doubles == 1 { "" } else { "s" }
+    )?;
+    writeln!(
+        manif_file,
+        "+ {} chest{}",
+        chests,
+        if chests == 1 { "" } else { "s" }
+    )?;
+    writeln!(
+        manif_file,
+        "+ {} stack{}",
+        stacks,
+        if stacks == 1 { "" } else { "s" }
+    )?;
+    writeln!(
+        manif_file,
+        "+ {} block{}\n",
+        blocks,
+        if blocks == 1 { "" } else { "s" }
+    )?;
+
+    writeln!(
+        manif_file,
+        "Definitions:
+        1 double chest = 2 chests
+        1 double chest = 54 stacks
+        1 double chest = 3456 blocks
+        1 chest = 27 stacks
+        1 chest = 1728 blocks
+        1 stack = 64 blocks"
+    )?;
 
     // Litematica schematic
     let mut enclosing_size = CompoundTag::new();
