@@ -1,0 +1,7 @@
+# Sphere with radius s
+-s <= x <= s
+-s <= y <= s
+-s <= z <= s
+
+r <= s
+r >= s - 2

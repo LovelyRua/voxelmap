@@ -53,6 +53,7 @@ The output consists of a series of images, each depicting a layer of the solid, 
 | `octahedron1.solid` | Octahedron | An octaheron stood on its vertex |
 | `hoctahedron1.solid` | Hollow Octahedron | A hollow octahedron stood on its vertex |
 | `sphere.solid` | Sphere | A sphere of radius s |
+| `hsphere.solid` | Hollow Sphere | A sphere of radius s and thickness 2 |
 | `torus1.solid` | Torus | A torus with a tube radius of s, and a hole radius of 2 * s |
 | `ramp.solid` | Ramp | A spiraling ramp |
 | `helix1.solid` | Helix | A helix |
