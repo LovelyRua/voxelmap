@@ -602,6 +602,72 @@ fn main() -> Result<(), error::Error> {
         total_blocks,
         if total_blocks == 1 { "" } else { "s" }
     )?;
+    let gold_picks = if total_blocks % 32 == 0 {
+        total_blocks / 32
+    } else {
+        1 + total_blocks / 32
+    };
+    let wood_picks = if total_blocks % 59 == 0 {
+        total_blocks / 59
+    } else {
+        1 + total_blocks / 59
+    };
+    let stone_picks = if total_blocks % 131 == 0 {
+        total_blocks / 131
+    } else {
+        1 + total_blocks / 131
+    };
+    let iron_picks = if total_blocks % 250 == 0 {
+        total_blocks / 250
+    } else {
+        1 + total_blocks / 250
+    };
+    let diamond_picks = if total_blocks % 1561 == 0 {
+        total_blocks / 1561
+    } else {
+        1 + total_blocks / 1561
+    };
+    let netherite_picks = if total_blocks % 2031 == 0 {
+        total_blocks / 2031
+    } else {
+        1 + total_blocks / 2031
+    };
+    writeln!(
+        manif_file,
+        "{} gold pick{}",
+        gold_picks,
+        if gold_picks == 1 { "" } else { "s" }
+    )?;
+    writeln!(
+        manif_file,
+        "or {} wood pick{}",
+        wood_picks,
+        if wood_picks == 1 { "" } else { "s" }
+    )?;
+    writeln!(
+        manif_file,
+        "or {} stone pick{}",
+        stone_picks,
+        if stone_picks == 1 { "" } else { "s" }
+    )?;
+    writeln!(
+        manif_file,
+        "or {} iron pick{}",
+        iron_picks,
+        if iron_picks == 1 { "" } else { "s" }
+    )?;
+    writeln!(
+        manif_file,
+        "or {} diamond pick{}",
+        diamond_picks,
+        if diamond_picks == 1 { "" } else { "s" }
+    )?;
+    writeln!(
+        manif_file,
+        "or {} netherite pick{}\n\n",
+        netherite_picks,
+        if netherite_picks == 1 { "" } else { "s" }
+    )?;
     let doubles = total_blocks / (64 * 54);
     let chests = (total_blocks % (64 * 54)) / (27 * 64);
     let stacks = (total_blocks % (64 * 27)) / 64;
@@ -640,7 +706,14 @@ fn main() -> Result<(), error::Error> {
         1 double chest = 3456 blocks
         1 chest = 27 stacks
         1 chest = 1728 blocks
-        1 stack = 64 blocks"
+        1 stack = 64 blocks
+        ---
+        1 gold tool = 32 blocks
+        1 wood tool = 59 blocks
+        1 stone tool = 131 blocks
+        1 iron tool = 250 blocks
+        1 diamond tool = 1561 blocks
+        1 netherite tool = 2031 blocks"
     )?;
 
     // Litematica schematic
