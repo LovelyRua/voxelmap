@@ -483,6 +483,11 @@ fn main() -> Result<(), error::Error> {
     let multiple_empty = RGBA8::new(255, 255, 0, 255); // Yellow
     let grid = RGBA8::new(255, 128, 128, 255); // Coral (Grid)
 
+    let mut top_view: Vec<RGBA8> = Vec::with_capacity(pix_size);
+    top_view.resize(pix_size, grid);
+
+    let mut first = true;
+
     for z in min_z..=max_z {
         let name = format! {"{}/layer{:04}.png",output_folder,1 + z - min_z};
 
@@ -533,12 +538,22 @@ fn main() -> Result<(), error::Error> {
                     (true, true) => multiple_filled_in,
                 };
 
+                let current_height = z - min_z;
+                let ratio = (current_height * 192 / height) as u8;
+                let top_color = RGBA8::new(ratio, ratio, ratio, 255);
+
                 for pix_x in 0..5 {
                     for pix_y in 0..5 {
-                        pixels[(1 + square_start_y + pix_y) * pix_width
-                            + 1
-                            + square_start_x
-                            + pix_x] = color;
+                        let offset =
+                            (1 + square_start_y + pix_y) * pix_width + 1 + square_start_x + pix_x;
+
+                        pixels[offset] = color;
+
+                        if is_filled {
+                            top_view[offset] = top_color;
+                        } else if first {
+                            top_view[offset] = empty;
+                        }
                     }
                 }
 
@@ -555,11 +570,19 @@ fn main() -> Result<(), error::Error> {
             }
         }
         lodepng::encode32_file(name, &pixels, pix_width, pix_height)?;
+        first = false;
     }
 
     if counter != 0 {
         lite_block_data.push(working);
     }
+
+    lodepng::encode32_file(
+        format! {"{}/top_view.png",output_folder},
+        &top_view,
+        pix_width,
+        pix_height,
+    )?;
 
     let mut manif_file = fs::File::create(format! {"{}/manifest.txt",output_folder})?;
     let stacks = if total_blocks % 64 == 0 {
