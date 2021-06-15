@@ -482,11 +482,11 @@ fn main() -> Result<(), error::Error> {
     let multiple_filled_in = RGBA8::new(0, 0, 255, 255); // Blue
     let multiple_empty = RGBA8::new(255, 255, 0, 255); // Yellow
     let grid = RGBA8::new(255, 128, 128, 255); // Coral (Grid)
+    let transparent = RGBA8::new(255, 255, 255, 0); // Transparent White
 
-    let mut top_view: Vec<RGBA8> = Vec::with_capacity(pix_size);
-    top_view.resize(pix_size, grid);
-
-    let mut first = true;
+    let top_size: usize = (width as usize) * (height as usize);
+    let mut top_view: Vec<RGBA8> = Vec::with_capacity(top_size);
+    top_view.resize(top_size, transparent);
 
     for z in min_z..=max_z {
         let name = format! {"{}/layer{:04}.png",output_folder,1 + z - min_z};
@@ -494,6 +494,10 @@ fn main() -> Result<(), error::Error> {
         let mut pixels: Vec<RGBA8> = Vec::with_capacity(pix_size);
 
         pixels.resize(pix_size, grid);
+
+        let current_depth = z - min_z;
+        let ratio = (current_depth * 192 / depth) as u8;
+        let top_color = RGBA8::new(ratio, ratio, ratio, 255);
 
         for y in min_y..=max_y {
             let square_start_y = 6 * (y - min_y) as usize;
@@ -538,9 +542,11 @@ fn main() -> Result<(), error::Error> {
                     (true, true) => multiple_filled_in,
                 };
 
-                let current_height = z - min_z;
-                let ratio = (current_height * 192 / height) as u8;
-                let top_color = RGBA8::new(ratio, ratio, ratio, 255);
+                if is_filled {
+                    let offset: usize = ((y - min_y) * width + (x - min_x)) as usize;
+
+                    top_view[offset] = top_color;
+                }
 
                 for pix_x in 0..5 {
                     for pix_y in 0..5 {
@@ -548,12 +554,6 @@ fn main() -> Result<(), error::Error> {
                             (1 + square_start_y + pix_y) * pix_width + 1 + square_start_x + pix_x;
 
                         pixels[offset] = color;
-
-                        if is_filled {
-                            top_view[offset] = top_color;
-                        } else if first {
-                            top_view[offset] = empty;
-                        }
                     }
                 }
 
@@ -570,7 +570,6 @@ fn main() -> Result<(), error::Error> {
             }
         }
         lodepng::encode32_file(name, &pixels, pix_width, pix_height)?;
-        first = false;
     }
 
     if counter != 0 {
@@ -580,8 +579,8 @@ fn main() -> Result<(), error::Error> {
     lodepng::encode32_file(
         format! {"{}/top_view.png",output_folder},
         &top_view,
-        pix_width,
-        pix_height,
+        width as usize,
+        height as usize,
     )?;
 
     let mut manif_file = fs::File::create(format! {"{}/manifest.txt",output_folder})?;
