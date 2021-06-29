@@ -368,11 +368,15 @@ fn main() -> Result<(), error::Error> {
 
     let mut line_ends = false;
 
-    for token in lex {
+    let mut reason = "parsing";
+
+    for (token, span) in lex.spanned() {
         if debug {
             println!("{:?}", token);
         }
-        if token == parser::Token::LineEnd {
+        if token == parser::Token::Error {
+            reason = "tokenizing";
+        } else if token == parser::Token::LineEnd {
             if line_ends {
                 continue;
             } else {
@@ -381,10 +385,45 @@ fn main() -> Result<(), error::Error> {
         } else {
             line_ends = false;
         }
-        p.parse(token)?;
+        if p.parse(token).is_err() {
+            let mut line = 1;
+            let mut col = 1;
+            for (index, _) in data.match_indices('\n') {
+                if index > span.start {
+                    break;
+                }
+                line += 1;
+                col = span.start - index;
+            }
+            let token_val = if line_ends {
+                r"\n"
+            } else {
+                data.get(span).unwrap()
+            };
+            eprintln!(
+                "{}:{}:{}: Error {} \"{}\"",
+                matches.value_of("FILE").unwrap(),
+                line,
+                col,
+                reason,
+                token_val
+            );
+            fs::remove_dir(matches.value_of("OUTPUT_DIR").unwrap())?;
+            return Err(Error::ParserError);
+        }
     }
 
-    let (assigns, limits, tree) = p.end_of_input()?;
+    let (assigns, limits, tree) = match p.end_of_input() {
+        Ok(result) => Ok(result),
+        Err(_) => {
+            eprintln!(
+                "{}: Unexpected end of file",
+                matches.value_of("FILE").unwrap()
+            );
+            fs::remove_dir(matches.value_of("OUTPUT_DIR").unwrap())?;
+            Err(Error::ParserError)
+        }
+    }?;
 
     let idents = assigns.unwrap_or_default();
     let ident_arg = Some(&idents);
