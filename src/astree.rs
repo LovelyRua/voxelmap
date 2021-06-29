@@ -1,5 +1,6 @@
 use crate::error::Error;
 use std::collections::{HashMap, HashSet};
+use std::io::Write;
 
 #[derive(Debug, PartialEq)]
 pub enum FunctionType {
@@ -59,6 +60,35 @@ impl FunctionData {
             FunctionType::Neg => Ok(-value),
         }
     }
+
+    pub fn graph(&self, output: &mut impl Write, id: usize) -> Result<usize, Error> {
+        let label = match self.kind {
+            FunctionType::Sin => "sin",
+            FunctionType::Cos => "cos",
+            FunctionType::Tan => "tan",
+            FunctionType::Sec => "sec",
+            FunctionType::Csc => "csc",
+            FunctionType::Cot => "cot",
+            FunctionType::Asin => "asin",
+            FunctionType::Acos => "acos",
+            FunctionType::Atan => "atan",
+            FunctionType::Sign => "sign",
+            FunctionType::Abs => "abs",
+            FunctionType::Sqrt => "sqrt",
+            FunctionType::Exp => "exp",
+            FunctionType::Ln => "ln",
+            FunctionType::Log => "log_10",
+            FunctionType::Neg => "-",
+        };
+        writeln!(
+            output,
+            "\tnode{} [label=\"{}\",shape=trapezium];",
+            id, label
+        )?;
+        let max_id = self.arg.graph(output, id + 1)?;
+        writeln!(output, "\tnode{} -> node{};", id, max_id)?;
+        Ok(max_id)
+    }
 }
 
 #[derive(Debug)]
@@ -91,6 +121,24 @@ impl OperationData {
             '^' => Ok(left.powf(right)),
             _ => Err(Error::UnrecognisedBinaryOperator),
         }
+    }
+
+    pub fn graph(&self, output: &mut impl Write, id: usize) -> Result<usize, Error> {
+        writeln!(
+            output,
+            "\tnode{} [label=\"{}\",shape=invtriangle];",
+            id, self.kind
+        )?;
+        let new_id = self.left.graph(output, id + 1)?;
+        let max_id = self.right.graph(output, new_id + 1)?;
+        writeln!(output, "\tnode{} -> node{} [label=\"left\"];", id, id + 1)?;
+        writeln!(
+            output,
+            "\tnode{} -> node{} [label=\"right\"];",
+            id,
+            new_id + 1
+        )?;
+        Ok(max_id)
     }
 }
 
@@ -146,6 +194,25 @@ impl Expression {
                     .get(s)
                     .ok_or::<Error>(Error::MissingIdentAssignment)?;
                 referred.eval(idents, vars)
+            }
+        }
+    }
+
+    pub fn graph(&self, output: &mut impl Write, id: usize) -> Result<usize, Error> {
+        match self {
+            Expression::Float(f) => {
+                writeln!(output, "\tnode{} [label=\"{}\",shape=oval];", id, f)?;
+                Ok(id)
+            }
+            Expression::Function(f) => f.graph(output, id),
+            Expression::Operation(o) => o.graph(output, id),
+            Expression::Var(c) => {
+                writeln!(output, "\tnode{} [label=\"{}\",shape=egg];", id, c)?;
+                Ok(id)
+            }
+            Expression::Ident(s) => {
+                writeln!(output, "\tnode{} [label=\"{}\",shape=cds];", id, s)?;
+                Ok(id)
             }
         }
     }
@@ -251,6 +318,24 @@ impl Condition {
             _ => Err(Error::UnrecognisedCondition),
         }
     }
+
+    pub fn graph(&self, output: &mut impl Write, id: usize) -> Result<usize, Error> {
+        writeln!(
+            output,
+            "\tnode{} [label=\"{}\",shape=square];",
+            id, self.kind
+        )?;
+        let new_id = self.left.graph(output, id + 1)?;
+        let max_id = self.right.graph(output, new_id + 1)?;
+        writeln!(output, "\tnode{} -> node{} [label=\"left\"];", id, id + 1)?;
+        writeln!(
+            output,
+            "\tnode{} -> node{} [label=\"right\"];",
+            id,
+            new_id + 1
+        )?;
+        Ok(max_id)
+    }
 }
 
 #[derive(Debug)]
@@ -283,6 +368,24 @@ impl JunctionData {
             _ => Err(Error::UnrecognisedJunction),
         }
     }
+
+    pub fn graph(&self, output: &mut impl Write, id: usize) -> Result<usize, Error> {
+        writeln!(
+            output,
+            "\tnode{} [label=\"{}\",shape=hexagon];",
+            id, self.kind
+        )?;
+        let new_id = self.left.graph(output, id + 1)?;
+        let max_id = self.right.graph(output, new_id + 1)?;
+        writeln!(output, "\tnode{} -> node{} [label=\"left\"];", id, id + 1)?;
+        writeln!(
+            output,
+            "\tnode{} -> node{} [label=\"right\"];",
+            id,
+            new_id + 1
+        )?;
+        Ok(max_id)
+    }
 }
 
 #[derive(Debug)]
@@ -309,6 +412,13 @@ impl Junction {
         match self {
             Junction::Meta(meta) => meta.eval(idents, vars),
             Junction::Singleton(cond) => cond.eval(idents, vars),
+        }
+    }
+
+    pub fn graph(&self, output: &mut impl Write, id: usize) -> Result<usize, Error> {
+        match self {
+            Junction::Meta(meta) => meta.graph(output, id),
+            Junction::Singleton(cond) => cond.graph(output, id),
         }
     }
 }

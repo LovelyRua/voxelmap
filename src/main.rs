@@ -302,6 +302,14 @@ fn main() -> Result<(), error::Error> {
                 .multiple(false),
         )
         .arg(
+            Arg::with_name("graph")
+                .short("g")
+                .long("graph")
+                .help("Output graph of internal state")
+                .takes_value(false)
+                .multiple(false),
+        )
+        .arg(
             Arg::with_name("test")
                 .short("t")
                 .long("test")
@@ -342,6 +350,7 @@ fn main() -> Result<(), error::Error> {
 
     let offset = matches.is_present("offset");
     let debug = matches.is_present("debug");
+    let graph = matches.is_present("graph");
     let test = matches.is_present("test");
 
     let output_folder = if test {
@@ -426,6 +435,35 @@ fn main() -> Result<(), error::Error> {
     }?;
 
     let idents = assigns.unwrap_or_default();
+
+    // Print graph
+    if graph {
+        let mut gv_file = fs::File::create(format! {"{}/state.gv",output_folder})?;
+        writeln!(
+            gv_file,
+            "/* Graph file generated from {} v{}, by {} */\n\n",
+            crate_name!(),
+            crate_version!(),
+            crate_authors!()
+        )?;
+        writeln!(gv_file, "digraph State {{")?;
+        // Print main condition
+        let tree_nodes = tree.graph(&mut gv_file, 1)?;
+        // Print ident definitions
+        let mut max_node = tree_nodes;
+        for (label, expression) in &idents {
+            writeln!(
+                gv_file,
+                "\tnode{} [label=\"{}\",shape=cds];",
+                max_node + 1,
+                label
+            )?;
+            writeln!(gv_file, "\tnode{} -> node{};", max_node + 1, max_node + 2)?;
+            max_node = expression.graph(&mut gv_file, max_node + 2)?;
+        }
+        writeln!(gv_file, "}}")?;
+    }
+
     let ident_arg = Some(&idents);
     let mut min_x: Option<i64> = None;
     let mut max_x: Option<i64> = None;
