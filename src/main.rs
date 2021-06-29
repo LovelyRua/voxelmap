@@ -17,6 +17,12 @@ macro_rules! scale_message {
     };
 }
 
+macro_rules! csv_line {
+    ($f:ident, $n:expr, $t:expr, $c:expr, $s:expr, $b:expr) => {
+        writeln!($f, "{},{},{},{},{}", $n, $t, $c, $s, $b)?;
+    };
+}
+
 fn io_error(err: Error, path: &str) -> String {
     match err.kind() {
         ErrorKind::NotFound => format!("{} not found", path),
@@ -576,6 +582,7 @@ fn main() -> Result<(), error::Error> {
         lite_block_data.push(working);
     }
 
+    // Top View image
     lodepng::encode32_file(
         format! {"{}/top_view.png",output_folder},
         &top_view,
@@ -583,7 +590,10 @@ fn main() -> Result<(), error::Error> {
         height as usize,
     )?;
 
-    let mut manif_file = fs::File::create(format! {"{}/manifest.txt",output_folder})?;
+    // Manifest
+    let mut manif_file = fs::File::create(format! {"{}/manifest.csv",output_folder})?;
+    writeln!(manif_file, "Unit,Total,Combined,Stacks,Blocks")?;
+    writeln!(manif_file, ",,,,")?;
     let stacks = if total_blocks % 64 == 0 {
         total_blocks / 64
     } else {
@@ -599,31 +609,22 @@ fn main() -> Result<(), error::Error> {
     } else {
         1 + chests / 2
     };
-    writeln!(manif_file, "Rounded up totals:")?;
-    writeln!(
+    let combined_doubles = total_blocks / (64 * 54);
+    let combined_chests = (total_blocks % (64 * 54)) / (27 * 64);
+    let combined_stacks = (total_blocks % (64 * 27)) / 64;
+    let combined_blocks = total_blocks % 64;
+    csv_line!(
         manif_file,
-        "{} double chest{}",
+        "Double Chests",
         doubles,
-        if doubles == 1 { "" } else { "s" }
-    )?;
-    writeln!(
-        manif_file,
-        "or {} chest{}",
-        chests,
-        if chests == 1 { "" } else { "s" }
-    )?;
-    writeln!(
-        manif_file,
-        "or {} stack{}",
-        stacks,
-        if stacks == 1 { "" } else { "s" }
-    )?;
-    writeln!(
-        manif_file,
-        "or {} block{}\n",
-        total_blocks,
-        if total_blocks == 1 { "" } else { "s" }
-    )?;
+        combined_doubles,
+        54,
+        3456
+    );
+    csv_line!(manif_file, "Chests", chests, combined_chests, 27, 1728);
+    csv_line!(manif_file, "Stacks", stacks, combined_stacks, 1, 64);
+    csv_line!(manif_file, "Blocks", total_blocks, combined_blocks, '-', 1);
+    writeln!(manif_file, ",,,,")?;
     let gold_picks = if total_blocks % 32 == 0 {
         total_blocks / 32
     } else {
@@ -654,89 +655,19 @@ fn main() -> Result<(), error::Error> {
     } else {
         1 + total_blocks / 2031
     };
-    writeln!(
+    csv_line!(manif_file, "Gold Picks", gold_picks, '-', '-', 32);
+    csv_line!(manif_file, "Wood Picks", wood_picks, '-', '-', 59);
+    csv_line!(manif_file, "Stone Picks", stone_picks, '-', 2, 131);
+    csv_line!(manif_file, "Iron Picks", iron_picks, '-', 3, 250);
+    csv_line!(manif_file, "Diamond Picks", diamond_picks, '-', 24, 1561);
+    csv_line!(
         manif_file,
-        "{} gold pick{}",
-        gold_picks,
-        if gold_picks == 1 { "" } else { "s" }
-    )?;
-    writeln!(
-        manif_file,
-        "or {} wood pick{}",
-        wood_picks,
-        if wood_picks == 1 { "" } else { "s" }
-    )?;
-    writeln!(
-        manif_file,
-        "or {} stone pick{}",
-        stone_picks,
-        if stone_picks == 1 { "" } else { "s" }
-    )?;
-    writeln!(
-        manif_file,
-        "or {} iron pick{}",
-        iron_picks,
-        if iron_picks == 1 { "" } else { "s" }
-    )?;
-    writeln!(
-        manif_file,
-        "or {} diamond pick{}",
-        diamond_picks,
-        if diamond_picks == 1 { "" } else { "s" }
-    )?;
-    writeln!(
-        manif_file,
-        "or {} netherite pick{}\n\n",
+        "Netherite Picks",
         netherite_picks,
-        if netherite_picks == 1 { "" } else { "s" }
-    )?;
-    let doubles = total_blocks / (64 * 54);
-    let chests = (total_blocks % (64 * 54)) / (27 * 64);
-    let stacks = (total_blocks % (64 * 27)) / 64;
-    let blocks = total_blocks % 64;
-    writeln!(manif_file, "Exact compound number of blocks:")?;
-    writeln!(
-        manif_file,
-        "{} double chest{}",
-        doubles,
-        if doubles == 1 { "" } else { "s" }
-    )?;
-    writeln!(
-        manif_file,
-        "+ {} chest{}",
-        chests,
-        if chests == 1 { "" } else { "s" }
-    )?;
-    writeln!(
-        manif_file,
-        "+ {} stack{}",
-        stacks,
-        if stacks == 1 { "" } else { "s" }
-    )?;
-    writeln!(
-        manif_file,
-        "+ {} block{}\n",
-        blocks,
-        if blocks == 1 { "" } else { "s" }
-    )?;
-
-    writeln!(
-        manif_file,
-        "Definitions:
-        1 double chest = 2 chests
-        1 double chest = 54 stacks
-        1 double chest = 3456 blocks
-        1 chest = 27 stacks
-        1 chest = 1728 blocks
-        1 stack = 64 blocks
-        ---
-        1 gold tool = 32 blocks
-        1 wood tool = 59 blocks
-        1 stone tool = 131 blocks
-        1 iron tool = 250 blocks
-        1 diamond tool = 1561 blocks
-        1 netherite tool = 2031 blocks"
-    )?;
+        '-',
+        31,
+        2031
+    );
 
     // Litematica schematic
     let mut enclosing_size = CompoundTag::new();
