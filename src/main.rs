@@ -294,6 +294,30 @@ fn main() -> Result<(), error::Error> {
                 .multiple(false),
         )
         .arg(
+            Arg::with_name("xoffset")
+                .short("x")
+                .long("xoffset")
+                .help("Offset the x computation by half a block")
+                .takes_value(false)
+                .multiple(false),
+        )
+        .arg(
+            Arg::with_name("yoffset")
+                .short("y")
+                .long("yoffset")
+                .help("Offset the y computation by half a block")
+                .takes_value(false)
+                .multiple(false),
+        )
+        .arg(
+            Arg::with_name("zoffset")
+                .short("z")
+                .long("zoffset")
+                .help("Offset the z computation by half a block")
+                .takes_value(false)
+                .multiple(false),
+        )
+        .arg(
             Arg::with_name("debug")
                 .short("d")
                 .long("debug")
@@ -307,7 +331,8 @@ fn main() -> Result<(), error::Error> {
                 .long("graph")
                 .help("Output graph of internal state")
                 .takes_value(false)
-                .multiple(false),
+                .multiple(false)
+                .conflicts_with("test"),
         )
         .arg(
             Arg::with_name("test")
@@ -348,8 +373,24 @@ fn main() -> Result<(), error::Error> {
 
     let mut object_description = fs::File::open(matches.value_of("FILE").unwrap()).unwrap();
 
-    let offset = matches.is_present("offset");
     let debug = matches.is_present("debug");
+
+    let offset = matches.is_present("offset");
+    let toggle_x = matches.is_present("xoffset");
+    let toggle_y = matches.is_present("yoffset");
+    let toggle_z = matches.is_present("zoffset");
+
+    let offset_x = offset ^ toggle_x;
+    let offset_y = offset ^ toggle_y;
+    let offset_z = offset ^ toggle_z;
+
+    if debug {
+        println!("Offset toggles:\n\tGlobal: {}\n\tx toggle: {}\n\ty toggle: {}\n\tz toggle: {}",
+            offset, toggle_x, toggle_y, toggle_z);
+        println!("Offsets:\n\tx offset: {}\n\ty offset: {}\n\tz offset: {}",
+            offset_x, offset_y, offset_z);
+    }
+
     let graph = matches.is_present("graph");
     let test = matches.is_present("test");
 
@@ -436,34 +477,6 @@ fn main() -> Result<(), error::Error> {
 
     let idents = assigns.unwrap_or_default();
 
-    // Print graph
-    if graph {
-        let mut gv_file = fs::File::create(format! {"{}/state.gv",output_folder})?;
-        writeln!(
-            gv_file,
-            "/* Graph file generated from {} v{}, by {} */\n\n",
-            crate_name!(),
-            crate_version!(),
-            crate_authors!()
-        )?;
-        writeln!(gv_file, "digraph State {{")?;
-        // Print main condition
-        let tree_nodes = tree.graph(&mut gv_file, 1)?;
-        // Print ident definitions
-        let mut max_node = tree_nodes;
-        for (label, expression) in &idents {
-            writeln!(
-                gv_file,
-                "\tnode{} [label=\"{}\",shape=cds];",
-                max_node + 1,
-                label
-            )?;
-            writeln!(gv_file, "\tnode{} -> node{};", max_node + 1, max_node + 2)?;
-            max_node = expression.graph(&mut gv_file, max_node + 2)?;
-        }
-        writeln!(gv_file, "}}")?;
-    }
-
     let ident_arg = Some(&idents);
     let mut min_x: Option<i64> = None;
     let mut max_x: Option<i64> = None;
@@ -537,6 +550,34 @@ fn main() -> Result<(), error::Error> {
         return Ok(());
     }
 
+    // Print graph
+    if graph {
+        let mut gv_file = fs::File::create(format! {"{}/state.gv",output_folder})?;
+        writeln!(
+            gv_file,
+            "/* Graph file generated from {} v{}, by {} */\n\n",
+            crate_name!(),
+            crate_version!(),
+            crate_authors!()
+        )?;
+        writeln!(gv_file, "digraph State {{")?;
+        // Print main condition
+        let tree_nodes = tree.graph(&mut gv_file, 1)?;
+        // Print ident definitions
+        let mut max_node = tree_nodes;
+        for (label, expression) in &idents {
+            writeln!(
+                gv_file,
+                "\tnode{} [label=\"{}\",shape=cds];",
+                max_node + 1,
+                label
+            )?;
+            writeln!(gv_file, "\tnode{} -> node{};", max_node + 1, max_node + 2)?;
+            max_node = expression.graph(&mut gv_file, max_node + 2)?;
+        }
+        writeln!(gv_file, "}}")?;
+    }
+
     let min_x: i64 = min_x.unwrap();
     let max_x: i64 = max_x.unwrap();
     let min_y: i64 = min_y.unwrap();
@@ -586,9 +627,9 @@ fn main() -> Result<(), error::Error> {
             let square_start_y = 6 * (y - min_y) as usize;
             let grid_y = y.abs() % 10 == 0;
             for x in min_x..=max_x {
-                let x_f: f64 = (x as f64) + if offset { 0.5_f64 } else { 0_f64 };
-                let y_f: f64 = (y as f64) + if offset { 0.5_f64 } else { 0_f64 };
-                let z_f: f64 = (z as f64) + if offset { 0.5_f64 } else { 0_f64 };
+                let x_f: f64 = (x as f64) + if offset_x { 0.5_f64 } else { 0_f64 };
+                let y_f: f64 = (y as f64) + if offset_y { 0.5_f64 } else { 0_f64 };
+                let z_f: f64 = (z as f64) + if offset_z { 0.5_f64 } else { 0_f64 };
                 let rho: f64 = (x_f.powi(2) + y_f.powi(2)).sqrt();
                 let r: f64 = (z_f.powi(2) + rho.powi(2)).sqrt();
                 let tht: f64 = (z_f / rho).atan();
