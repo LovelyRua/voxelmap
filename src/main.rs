@@ -109,8 +109,7 @@ fn main() -> Result<(), error::Error> {
                 .long("graph")
                 .help("Output graph of internal state")
                 .takes_value(false)
-                .multiple(false)
-                .conflicts_with("test"),
+                .multiple(false),
         )
         .arg(
             Arg::with_name("test")
@@ -177,7 +176,7 @@ fn main() -> Result<(), error::Error> {
     let test = matches.is_present("test");
 
     let output_folder = if test {
-        ""
+        "."
     } else {
         matches.value_of("OUTPUT_DIR").unwrap()
     };
@@ -272,10 +271,6 @@ fn main() -> Result<(), error::Error> {
         println!("\n{:?}", tree);
     }
 
-    if test {
-        return Ok(());
-    }
-
     // Print graph
     if graph {
         let mut gv_file = fs::File::create(format! {"{}/state.gv",output_folder})?;
@@ -302,6 +297,10 @@ fn main() -> Result<(), error::Error> {
             max_node = expression.graph(&mut gv_file, max_node + 2)?;
         }
         writeln!(gv_file, "}}")?;
+    }
+
+    if test {
+        return Ok(());
     }
 
     let min_x: i64 = min_x.unwrap();

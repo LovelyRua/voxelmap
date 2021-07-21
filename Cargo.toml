@@ -1,6 +1,6 @@
 [package]
 name = "voxelmap"
-version = "0.3.2"
+version = "0.3.3"
 authors = ["raffitz <raf.a.m.c.gon@gmail.com>"]
 edition = "2018"
 description = "Converts mathematical descriptions of objects to voxel maps"
