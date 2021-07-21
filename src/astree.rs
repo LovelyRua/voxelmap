@@ -2,7 +2,7 @@ use crate::error::Error;
 use std::collections::{HashMap, HashSet};
 use std::io::Write;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum FunctionType {
     Sin,
     Cos,
@@ -22,7 +22,7 @@ pub enum FunctionType {
     Neg,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FunctionData {
     kind: FunctionType,
     arg: Box<Expression>,
@@ -91,7 +91,7 @@ impl FunctionData {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct OperationData {
     kind: char,
     left: Box<Expression>,
@@ -142,7 +142,7 @@ impl OperationData {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Expression {
     Var(char),
     Float(f64),

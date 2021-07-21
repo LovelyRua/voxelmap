@@ -11,15 +11,9 @@ mod error;
 mod ngon;
 mod parser;
 
-macro_rules! scale_message {
-    ($n:ident) => {
-        Err(format!("<{}> is not a valid scale value", $n))
-    };
-}
-
-macro_rules! sides_message {
-    ($n:ident) => {
-        Err(format!("<{}> is not a valid number of sides", $n))
+macro_rules! value_message {
+    ($n:ident, $t:expr) => {
+        Err(format!("<{}> is not a valid {}", $n, $t))
     };
 }
 
@@ -59,7 +53,7 @@ fn main() -> Result<(), error::Error> {
                             return Ok(());
                         }
                     }
-                    scale_message!(n)
+                    value_message!(n,"scale value")
                 }),
         )
         .arg(
@@ -129,6 +123,39 @@ fn main() -> Result<(), error::Error> {
         .subcommand(SubCommand::with_name("ngon")
             .about("Make an ngon")
             .arg(
+                Arg::with_name("angle")
+                .short("a")
+                .long("angle")
+                .help("Angle in radians by which to rotate the ngon")
+                .takes_value(true)
+                .multiple(false)
+                .value_name("RAD")
+                .validator(|n: String| -> Result<(), String> {
+                    if n.parse::<f64>().is_err() {
+                        value_message!(n,"angle in radians")
+                    }else{
+                        Ok(())
+                    }
+                }),
+            )
+            .arg(
+                Arg::with_name("degrees")
+                .short("e")
+                .long("degrees")
+                .help("Angle in degrees by which to rotate the ngon")
+                .conflicts_with("angle")
+                .takes_value(true)
+                .multiple(false)
+                .value_name("DEG")
+                .validator(|n: String| -> Result<(), String> {
+                    if n.parse::<f64>().is_err() {
+                        value_message!(n,"angle in degrees")
+                    }else{
+                        Ok(())
+                    }
+                }),
+            )
+            .arg(
                 Arg::with_name("N")
                 .help("The number of sides of the ngon")
                 .required(true)
@@ -139,7 +166,7 @@ fn main() -> Result<(), error::Error> {
                             return Ok(());
                         }
                     }
-                    sides_message!(n)
+                    value_message!(n,"number of sides")
                 }),
             )
             .arg(
@@ -240,12 +267,33 @@ fn main() -> Result<(), error::Error> {
             debug,
         )?;
     } else if let Some(submatches) = matches.subcommand_matches("ngon") {
+        let mut labels = HashMap::new();
+        let angleident;
+
+        if let Some(value) = submatches.value_of("angle") {
+            let angle_exp = astree::Expression::float(value.parse::<f64>().unwrap());
+            labels.insert(String::from("@clangle"), angle_exp);
+            angleident = Some(String::from("@clangle"));
+        } else if let Some(value) = submatches.value_of("degrees") {
+            let angle_exp = astree::Expression::float(value.parse::<f64>().unwrap().to_radians());
+            labels.insert(String::from("@clangle"), angle_exp);
+            angleident = Some(String::from("@clangle"));
+        } else {
+            angleident = None;
+        }
+
         output_folder = submatches.value_of("OUTPUT_DIR").unwrap_or(output_folder);
-        structure = ngon::generate(
+        structure = ngon::generate::<String, f64>(
             submatches
                 .value_of("N")
                 .map(|n| n.parse::<u8>().unwrap())
                 .unwrap(),
+            None,
+            None,
+            None,
+            angleident,
+            None,
+            Some(labels),
         )?;
     } else {
         println!("{}", matches.usage());

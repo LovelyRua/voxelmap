@@ -1,6 +1,6 @@
 [package]
 name = "voxelmap"
-version = "0.4.0"
+version = "0.4.2"
 authors = ["raffitz <raf.a.m.c.gon@gmail.com>"]
 edition = "2018"
 description = "Creates voxel maps to build voxelised objects"
