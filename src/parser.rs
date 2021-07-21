@@ -1,3 +1,4 @@
+use crate::astree;
 use crate::error;
 use crate::error::Error;
 use logos::Logos;
@@ -8,49 +9,8 @@ use std::path::Path;
 pomelo! {
     %include {
         use logos::{Lexer, Logos};
-        use crate::astree::{Condition, Expression, FunctionType, Junction};
+        use crate::astree::{Boundary, Boundaries, Condition, Expression, FunctionType, Junction, Structure};
         use std::collections::HashMap;
-
-        #[derive(Debug)]
-        pub struct Boundary{
-            pub var: char,
-            pub min: Expression,
-            pub max: Expression,
-        }
-
-        impl Boundary{
-            pub fn new(
-                l: Expression,
-                lcond: char,
-                var: char,
-                rcond: char,
-                r: Expression,
-            ) -> Result<Self,()> {
-                if var != 'x' && var != 'y' && var != 'z' {
-                    return Err(());
-                }
-                if lcond == '<' || lcond == '≤' {
-                    if rcond == '<' || rcond == '≤'{
-                        let min = l;
-                        let max = r;
-                        return Ok(Boundary{var,min,max});
-                    }
-                    return Err(());
-                }else if lcond == '>' || lcond == '≥'{
-                    if rcond == '>' || rcond == '≥'{
-                        let min = r;
-                        let max = l;
-                        return Ok(Boundary{var,min,max});
-                    }
-                    return Err(());
-                }
-                Err(())
-            }
-        }
-
-        pub type Boundaries = [Boundary; 3];
-
-        pub type Return = (Option<HashMap<String,Expression>>, Boundaries, Junction);
 
         fn read_var(lex: &mut Lexer<Token>) -> Option<char> {
             lex.slice().chars().next()
@@ -162,7 +122,7 @@ pomelo! {
     %right Function;
     %left LineEnd;
 
-    %type input Return;
+    %type input Structure;
     input ::= boundaries(L) metajuncture(J) { (None,L,J) }
     input ::= LineEnd boundaries(L) metajuncture(J) { (None,L,J) }
     input ::= assignments(A) boundaries(L) metajuncture(J) { (Some(A),L,J) }
@@ -231,7 +191,7 @@ pub fn parse<P: AsRef<Path> + std::fmt::Display>(
     file: P,
     output_dir: Option<P>,
     debug: bool,
-) -> Result<parser::Return, error::Error> {
+) -> Result<astree::Structure, error::Error> {
     let lex = parser::Token::lexer(source);
 
     let mut p = parser::Parser::new();
@@ -285,7 +245,7 @@ pub fn parse<P: AsRef<Path> + std::fmt::Display>(
         Ok(result) => Ok(result),
         Err(_) => {
             eprintln!("{}: Unexpected end of file", file);
-            if let Some(the_dir) = output_dir{
+            if let Some(the_dir) = output_dir {
                 fs::remove_dir(the_dir)?;
             }
             Err(Error::ParserError)

@@ -1,4 +1,4 @@
-use clap::{crate_authors, crate_description, crate_name, crate_version, App, Arg};
+use clap::{crate_authors, crate_description, crate_name, crate_version, App, Arg, SubCommand};
 use nbt::encode::write_gzip_compound_tag;
 use nbt::{CompoundTag, Tag};
 use rgb::*;
@@ -8,11 +8,18 @@ use std::io::{Error, ErrorKind, Read, Write};
 
 mod astree;
 mod error;
+mod ngon;
 mod parser;
 
 macro_rules! scale_message {
     ($n:ident) => {
         Err(format!("<{}> is not a valid scale value", $n))
+    };
+}
+
+macro_rules! sides_message {
+    ($n:ident) => {
+        Err(format!("<{}> is not a valid number of sides", $n))
     };
 }
 
@@ -45,7 +52,7 @@ fn main() -> Result<(), error::Error> {
                 .help("The scale parameter for the object")
                 .takes_value(true)
                 .multiple(false)
-                .value_name("N")
+                .value_name("S")
                 .validator(|n: String| -> Result<(), String> {
                     if let Ok(scale) = n.parse::<f64>() {
                         if scale >= 0_f64 {
@@ -99,7 +106,7 @@ fn main() -> Result<(), error::Error> {
             Arg::with_name("debug")
                 .short("d")
                 .long("debug")
-                .help("Show parsing steps")
+                .help("Show intermediate steps")
                 .takes_value(false)
                 .multiple(false),
         )
@@ -115,24 +122,28 @@ fn main() -> Result<(), error::Error> {
             Arg::with_name("test")
                 .short("t")
                 .long("test")
-                .help("Parses the input file, does not output")
+                .help("Parses the input, does not output")
                 .takes_value(false)
                 .multiple(false),
         )
-        .arg(
-            Arg::with_name("FILE")
-                .help("The file describing the shape to map")
+        .subcommand(SubCommand::with_name("ngon")
+            .about("Make an ngon")
+            .arg(
+                Arg::with_name("N")
+                .help("The number of sides of the ngon")
                 .required(true)
                 .index(1)
-                .validator(move |path: String| -> Result<(), String> {
-                    match fs::File::open(&path) {
-                        Ok(_) => Ok(()),
-                        Err(error) => Err(io_error(error, &path)),
+                .validator(|n: String| -> Result<(), String> {
+                    if let Ok(sides) = n.parse::<u8>() {
+                        if (3..=100).contains(&sides) {
+                            return Ok(());
+                        }
                     }
+                    sides_message!(n)
                 }),
-        )
-        .arg(
-            Arg::with_name("OUTPUT_DIR")
+            )
+            .arg(
+                Arg::with_name("OUTPUT_DIR")
                 .help("The folder where the output images will be stored")
                 .required(true)
                 .index(2)
@@ -143,12 +154,39 @@ fn main() -> Result<(), error::Error> {
                     }
                 })
                 .conflicts_with("test"),
+            )
+        )
+        .subcommand(SubCommand::with_name("solid")
+            .about("Read mathematical description of solid")
+            .arg(
+                Arg::with_name("FILE")
+                .help("The file describing the shape to map")
+                .required(true)
+                .index(1)
+                .validator(move |path: String| -> Result<(), String> {
+                    match fs::File::open(&path) {
+                        Ok(_) => Ok(()),
+                        Err(error) => Err(io_error(error, &path)),
+                    }
+                })
+            )
+            .arg(
+                Arg::with_name("OUTPUT_DIR")
+                .help("The folder where the output images will be stored")
+                .required(true)
+                .index(2)
+                .validator(move |path: String| -> Result<(), String> {
+                    match fs::create_dir(&path) {
+                        Ok(_) => Ok(()),
+                        Err(error) => Err(io_error(error, &path)),
+                    }
+                })
+                .conflicts_with("test"),
+            )
         )
         .get_matches();
 
     let scale = matches.value_of("scale").map(|s| s.parse::<f64>().unwrap());
-
-    let mut object_description = fs::File::open(matches.value_of("FILE").unwrap()).unwrap();
 
     let debug = matches.is_present("debug");
 
@@ -175,30 +213,46 @@ fn main() -> Result<(), error::Error> {
     let graph = matches.is_present("graph");
     let test = matches.is_present("test");
 
-    let output_folder = if test {
-        "."
+    let mut output_folder = ".";
+
+    let structure: astree::Structure;
+
+    if let Some(submatches) = matches.subcommand_matches("solid") {
+        let mut data = String::new();
+
+        let mut object_description = fs::File::open(submatches.value_of("FILE").unwrap()).unwrap();
+        output_folder = submatches.value_of("OUTPUT_DIR").unwrap_or(output_folder);
+
+        let read_count = object_description.read_to_string(&mut data)?;
+
+        if debug {
+            println!(
+                "\nRead {} bytes, scale is {}",
+                read_count,
+                scale.unwrap_or(1.0_f64)
+            );
+        }
+
+        structure = parser::parse(
+            &data,
+            submatches.value_of("FILE").unwrap(),
+            submatches.value_of("OUTPUT_DIR"),
+            debug,
+        )?;
+    } else if let Some(submatches) = matches.subcommand_matches("ngon") {
+        output_folder = submatches.value_of("OUTPUT_DIR").unwrap_or(output_folder);
+        structure = ngon::generate(
+            submatches
+                .value_of("N")
+                .map(|n| n.parse::<u8>().unwrap())
+                .unwrap(),
+        )?;
     } else {
-        matches.value_of("OUTPUT_DIR").unwrap()
-    };
-
-    let mut data = String::new();
-
-    let read_count = object_description.read_to_string(&mut data)?;
-
-    if debug {
-        println!(
-            "\nRead {} bytes, scale is {}",
-            read_count,
-            scale.unwrap_or(1.0_f64)
-        );
+        println!("{}", matches.usage());
+        return Err(Error::MissingSubCommand);
     }
 
-    let (assigns, limits, tree) = parser::parse(
-        &data,
-        matches.value_of("FILE").unwrap(),
-        matches.value_of("OUTPUT_DIR"),
-        debug,
-    )?;
+    let (assigns, limits, tree) = structure;
 
     let idents = assigns.unwrap_or_default();
 

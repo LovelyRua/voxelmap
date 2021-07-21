@@ -156,8 +156,8 @@ impl Expression {
         Expression::Var(c)
     }
 
-    pub fn float(f: f64) -> Self {
-        Expression::Float(f)
+    pub fn float<T: Into<f64>>(f: T) -> Self {
+        Expression::Float(f.into())
     }
 
     pub fn ident(s: String) -> Self {
@@ -422,3 +422,44 @@ impl Junction {
         }
     }
 }
+
+#[derive(Debug)]
+pub struct Boundary {
+    pub var: char,
+    pub min: Expression,
+    pub max: Expression,
+}
+
+impl Boundary {
+    pub fn new(
+        l: Expression,
+        lcond: char,
+        var: char,
+        rcond: char,
+        r: Expression,
+    ) -> Result<Self, ()> {
+        if var != 'x' && var != 'y' && var != 'z' {
+            return Err(());
+        }
+        if lcond == '<' || lcond == '≤' {
+            if rcond == '<' || rcond == '≤' {
+                let min = l;
+                let max = r;
+                return Ok(Boundary { var, min, max });
+            }
+            return Err(());
+        } else if lcond == '>' || lcond == '≥' {
+            if rcond == '>' || rcond == '≥' {
+                let min = r;
+                let max = l;
+                return Ok(Boundary { var, min, max });
+            }
+            return Err(());
+        }
+        Err(())
+    }
+}
+
+pub type Boundaries = [Boundary; 3];
+
+pub type Structure = (Option<HashMap<String, Expression>>, Boundaries, Junction);

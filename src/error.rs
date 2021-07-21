@@ -11,6 +11,7 @@ pub enum Error {
     MissingIdentAssignment,
     MissingVarMap,
     MissingIdentMap,
+    MissingSubCommand,
     IllegalVarInBoundary,
     IllegarBoundedVar,
     UnboundedVar,
