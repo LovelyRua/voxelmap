@@ -10,6 +10,8 @@ mod astree;
 mod error;
 mod ngon;
 mod parser;
+mod star;
+mod triangle;
 
 macro_rules! value_message {
     ($n:ident, $t:expr) => {
@@ -119,6 +121,86 @@ fn main() -> Result<(), error::Error> {
                 .help("Parses the input, does not output")
                 .takes_value(false)
                 .multiple(false),
+        )
+        .subcommand(SubCommand::with_name("star")
+            .about("Make a star")
+            .arg(
+                Arg::with_name("factor")
+                .short("f")
+                .long("factor")
+                .help("The scale parameter for the outer points of the star")
+                .takes_value(true)
+                .multiple(false)
+                .value_name("F")
+                .validator(|n: String| -> Result<(), String> {
+                    if let Ok(scale) = n.parse::<f64>() {
+                        if scale >= 0_f64 {
+                            return Ok(());
+                        }
+                    }
+                    value_message!(n,"outer points scale value")
+                }),
+            )
+            .arg(
+                Arg::with_name("angle")
+                .short("a")
+                .long("angle")
+                .help("Angle in radians by which to rotate the star")
+                .takes_value(true)
+                .multiple(false)
+                .value_name("RAD")
+                .validator(|n: String| -> Result<(), String> {
+                    if n.parse::<f64>().is_err() {
+                        value_message!(n,"angle in radians")
+                    }else{
+                        Ok(())
+                    }
+                }),
+            )
+            .arg(
+                Arg::with_name("degrees")
+                .short("e")
+                .long("degrees")
+                .help("Angle in degrees by which to rotate the star")
+                .conflicts_with("angle")
+                .takes_value(true)
+                .multiple(false)
+                .value_name("DEG")
+                .validator(|n: String| -> Result<(), String> {
+                    if n.parse::<f64>().is_err() {
+                        value_message!(n,"angle in degrees")
+                    }else{
+                        Ok(())
+                    }
+                }),
+            )
+            .arg(
+                Arg::with_name("N")
+                .help("The number of points of the star")
+                .required(true)
+                .index(1)
+                .validator(|n: String| -> Result<(), String> {
+                    if let Ok(sides) = n.parse::<u8>() {
+                        if (3..=100).contains(&sides) {
+                            return Ok(());
+                        }
+                    }
+                    value_message!(n,"number of points")
+                }),
+            )
+            .arg(
+                Arg::with_name("OUTPUT_DIR")
+                .help("The folder where the output images will be stored")
+                .required(true)
+                .index(2)
+                .validator(move |path: String| -> Result<(), String> {
+                    match fs::create_dir(&path) {
+                        Ok(_) => Ok(()),
+                        Err(error) => Err(io_error(error, &path)),
+                    }
+                })
+                .conflicts_with("test"),
+            )
         )
         .subcommand(SubCommand::with_name("ngon")
             .about("Make an ngon")
@@ -293,6 +375,38 @@ fn main() -> Result<(), error::Error> {
             None,
             angleident,
             None,
+            Some(labels),
+        )?;
+    } else if let Some(submatches) = matches.subcommand_matches("star") {
+        let mut labels = HashMap::new();
+        let angleident;
+
+        if let Some(value) = submatches.value_of("angle") {
+            let angle_exp = astree::Expression::float(value.parse::<f64>().unwrap());
+            labels.insert(String::from("@clangle"), angle_exp);
+            angleident = Some(String::from("@clangle"));
+        } else if let Some(value) = submatches.value_of("degrees") {
+            let angle_exp = astree::Expression::float(value.parse::<f64>().unwrap().to_radians());
+            labels.insert(String::from("@clangle"), angle_exp);
+            angleident = Some(String::from("@clangle"));
+        } else {
+            angleident = None;
+        }
+
+        let star_factor = submatches.value_of("factor").map(|f| f.parse::<f64>().unwrap());
+
+        output_folder = submatches.value_of("OUTPUT_DIR").unwrap_or(output_folder);
+        structure = star::generate::<String, f64>(
+            submatches
+                .value_of("N")
+                .map(|n| n.parse::<u8>().unwrap())
+                .unwrap(),
+            None,
+            None,
+            None,
+            angleident,
+            None,
+            star_factor,
             Some(labels),
         )?;
     } else {
