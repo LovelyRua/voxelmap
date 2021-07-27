@@ -58,7 +58,13 @@ pub fn generate<T: Into<String> + Clone, S: Into<f64> + Copy>(
     let angle_offset_label = format!("@{}innernangle0", prefix);
     let outer_prefix = format!("{}outer", prefix);
 
-    let outer_scale = star_scale.map(|s| s.into()).unwrap_or(2_f64) * new_scale.unwrap_or(1_f64);
+    let recip_n: f64 = (n as f64).recip();
+    let scale_angle = recip_n * std::f64::consts::PI;
+    let double_scale_angle = scale_angle + scale_angle;
+    let default_scale = scale_angle.sin() * double_scale_angle.tan() + scale_angle.cos();
+
+    let outer_scale =
+        star_scale.map(|s| s.into()).unwrap_or(default_scale) * new_scale.unwrap_or(1_f64);
 
     let (definitive_labels, boundaries, _) = ngon::generate(
         n,
