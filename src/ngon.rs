@@ -6,8 +6,7 @@ use std::collections::HashMap;
 pub fn generate<T: Into<String> + Clone, S: Into<f64> + Copy>(
     n: u8,
     prefix_val: Option<T>,
-    x_offset: Option<T>,
-    y_offset: Option<T>,
+    offset: (Option<T>, Option<T>),
     angle_offset: Option<T>,
     scale: Option<S>,
     previous_labels: Option<HashMap<String, Expression>>,
@@ -26,6 +25,8 @@ pub fn generate<T: Into<String> + Clone, S: Into<f64> + Copy>(
     let vars_eval = Some(&vars);
 
     let double_n: u16 = (n as u16) * 2;
+
+    let (x_offset, y_offset) = offset;
 
     let mut min_x = f64::MAX;
     let mut min_x_label = String::from("error");
@@ -74,6 +75,7 @@ pub fn generate<T: Into<String> + Clone, S: Into<f64> + Copy>(
                 Expression::ident(angle_label.to_string()),
             ),
         );
+
         let x_offset_clone = x_offset.clone();
         let x_exp = if let Some(ident) = x_offset_clone {
             Expression::operation('+', x_base, Expression::ident(ident.into()))

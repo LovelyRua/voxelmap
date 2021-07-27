@@ -115,6 +115,14 @@ fn main() -> Result<(), error::Error> {
                 .multiple(false),
         )
         .arg(
+            Arg::with_name("remake")
+                .short("r")
+                .long("remake")
+                .help("Remake definition file from internal state")
+                .takes_value(false)
+                .multiple(false),
+        )
+        .arg(
             Arg::with_name("test")
                 .short("t")
                 .long("test")
@@ -320,6 +328,7 @@ fn main() -> Result<(), error::Error> {
     }
 
     let graph = matches.is_present("graph");
+    let remake = matches.is_present("remake");
     let test = matches.is_present("test");
 
     let mut output_folder = ".";
@@ -371,8 +380,7 @@ fn main() -> Result<(), error::Error> {
                 .map(|n| n.parse::<u8>().unwrap())
                 .unwrap(),
             None,
-            None,
-            None,
+            (None, None),
             angleident,
             None,
             Some(labels),
@@ -393,7 +401,9 @@ fn main() -> Result<(), error::Error> {
             angleident = None;
         }
 
-        let star_factor = submatches.value_of("factor").map(|f| f.parse::<f64>().unwrap());
+        let star_factor = submatches
+            .value_of("factor")
+            .map(|f| f.parse::<f64>().unwrap());
 
         output_folder = submatches.value_of("OUTPUT_DIR").unwrap_or(output_folder);
         structure = star::generate::<String, f64>(
@@ -402,8 +412,7 @@ fn main() -> Result<(), error::Error> {
                 .map(|n| n.parse::<u8>().unwrap())
                 .unwrap(),
             None,
-            None,
-            None,
+            (None, None),
             angleident,
             None,
             star_factor,
@@ -513,6 +522,50 @@ fn main() -> Result<(), error::Error> {
             max_node = expression.graph(&mut gv_file, max_node + 2)?;
         }
         writeln!(gv_file, "}}")?;
+    }
+
+    // Print remake
+    if remake {
+        let mut remake_file = fs::File::create(format! {"{}/remake.solid",output_folder})?;
+        writeln!(
+            remake_file,
+            "# Solid specifications remade by {} v{}, by {} */\n\n",
+            crate_name!(),
+            crate_version!(),
+            crate_authors!()
+        )?;
+
+        let lookup = Some(&idents);
+
+        // Print tree and boundary dependencies
+        let mut complete_deps = tree.ident_dependencies(&lookup)?;
+        for limit in &limits {
+            let limit_deps = limit.ident_dependencies(&lookup)?;
+            for dep in limit_deps {
+                complete_deps.insert(dep);
+            }
+        }
+        let mut vector_deps: Vec<(String, usize)> = complete_deps.into_iter().collect();
+
+        vector_deps.sort_unstable_by(|(_, i), (_, j)| i.cmp(j));
+
+        for dep in vector_deps {
+            let (name, _) = dep;
+            let definition = idents
+                .get(&name)
+                .ok_or::<Error>(Error::MissingIdentAssignment)?;
+            writeln!(remake_file, "define {} {}", name, definition)?;
+        }
+        writeln!(remake_file, "\n")?;
+
+        // Print limits
+        for limit in &limits {
+            writeln!(remake_file, "{}", limit)?;
+        }
+        writeln!(remake_file, "\n")?;
+
+        // Print tree
+        writeln!(remake_file, "{}", tree)?;
     }
 
     if test {

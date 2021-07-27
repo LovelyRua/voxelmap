@@ -5,4 +5,5 @@
 */*.csv
 */*.txt
 */*.gv
+*/remake.solid
 *.gv

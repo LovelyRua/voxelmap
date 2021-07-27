@@ -1,5 +1,6 @@
 use crate::error::Error;
 use std::collections::{HashMap, HashSet};
+use std::fmt;
 use std::io::Write;
 
 #[derive(Debug, PartialEq, Clone)]
@@ -22,10 +23,40 @@ pub enum FunctionType {
     Neg,
 }
 
+impl fmt::Display for FunctionType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let text = match *self {
+            FunctionType::Sin => "sin",
+            FunctionType::Cos => "cos",
+            FunctionType::Tan => "tan",
+            FunctionType::Sec => "sec",
+            FunctionType::Csc => "csc",
+            FunctionType::Cot => "cot",
+            FunctionType::Asin => "asin",
+            FunctionType::Acos => "acos",
+            FunctionType::Atan => "atan",
+            FunctionType::Sign => "sign",
+            FunctionType::Abs => "abs",
+            FunctionType::Sqrt => "√",
+            FunctionType::Exp => "exp",
+            FunctionType::Ln => "ln",
+            FunctionType::Log => "log",
+            FunctionType::Neg => "-",
+        };
+        text.fmt(f)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct FunctionData {
     kind: FunctionType,
     arg: Box<Expression>,
+}
+
+impl fmt::Display for FunctionData {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}({})", self.kind, self.arg)
+    }
 }
 
 impl FunctionData {
@@ -98,6 +129,12 @@ pub struct OperationData {
     right: Box<Expression>,
 }
 
+impl fmt::Display for OperationData {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({} {} {})", self.left, self.kind, self.right)
+    }
+}
+
 impl OperationData {
     pub fn new(kind: char, left_exp: Expression, right_exp: Expression) -> Self {
         let left = Box::new(left_exp);
@@ -149,6 +186,18 @@ pub enum Expression {
     Ident(String),
     Function(FunctionData),
     Operation(OperationData),
+}
+
+impl fmt::Display for Expression {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Expression::Var(v) => v.fmt(f),
+            Expression::Float(n) => n.fmt(f),
+            Expression::Ident(s) => s.fmt(f),
+            Expression::Function(function) => function.fmt(f),
+            Expression::Operation(op) => op.fmt(f),
+        }
+    }
 }
 
 impl Expression {
@@ -254,34 +303,38 @@ impl Expression {
     pub fn ident_dependencies(
         &self,
         idents: &Option<&HashMap<String, Expression>>,
-    ) -> Result<HashSet<String>, Error> {
+    ) -> Result<HashSet<(String, usize)>, Error> {
         match self {
             Expression::Float(_) => Ok(HashSet::new()),
             Expression::Function(f) => f.arg.ident_dependencies(idents),
             Expression::Operation(o) => {
                 let left = o.left.ident_dependencies(idents)?;
                 let right = o.right.ident_dependencies(idents)?;
-                let mut result: HashSet<String> = HashSet::new();
-                for dep in left {
-                    result.insert(dep);
-                }
-                for dep in right {
-                    result.insert(dep);
+                let mut result: HashSet<(String, usize)> = HashSet::new();
+                for dep in left.union(&right) {
+                    result.insert(dep.to_owned());
                 }
                 Ok(result)
             }
             Expression::Var(_) => Ok(HashSet::new()),
             Expression::Ident(s) => {
-                let mut result: HashSet<String> = HashSet::new();
-                result.insert(s.to_owned());
+                let mut result: HashSet<(String, usize)> = HashSet::new();
+
+                let mut max_recursion: usize = 0;
+
                 let ident_exps = idents.as_ref().ok_or::<Error>(Error::MissingIdentMap)?;
                 let referred = ident_exps
                     .get(s)
                     .ok_or::<Error>(Error::MissingIdentAssignment)?;
                 let recursive = referred.ident_dependencies(idents)?;
                 for dep in recursive {
+                    let (_, level) = dep;
                     result.insert(dep);
+                    if level + 1 > max_recursion {
+                        max_recursion = level + 1;
+                    }
                 }
+                result.insert((s.to_owned(), max_recursion));
                 Ok(result)
             }
         }
@@ -293,6 +346,12 @@ pub struct Condition {
     kind: char,
     left: Box<Expression>,
     right: Box<Expression>,
+}
+
+impl fmt::Display for Condition {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} {} {}", self.left, self.kind, self.right)
+    }
 }
 
 impl Condition {
@@ -336,6 +395,19 @@ impl Condition {
         )?;
         Ok(max_id)
     }
+
+    pub fn ident_dependencies(
+        &self,
+        idents: &Option<&HashMap<String, Expression>>,
+    ) -> Result<HashSet<(String, usize)>, Error> {
+        let left_idents = self.left.ident_dependencies(idents)?;
+        let right_idents = self.right.ident_dependencies(idents)?;
+        let mut result: HashSet<(String, usize)> = HashSet::new();
+        for dep in left_idents.union(&right_idents) {
+            result.insert(dep.to_owned());
+        }
+        Ok(result)
+    }
 }
 
 #[derive(Debug)]
@@ -343,6 +415,12 @@ pub struct JunctionData {
     kind: char,
     left: Box<Junction>,
     right: Box<Junction>,
+}
+
+impl fmt::Display for JunctionData {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{{{} {} {}}}", self.left, self.kind, self.right)
+    }
 }
 
 impl JunctionData {
@@ -386,12 +464,34 @@ impl JunctionData {
         )?;
         Ok(max_id)
     }
+
+    pub fn ident_dependencies(
+        &self,
+        idents: &Option<&HashMap<String, Expression>>,
+    ) -> Result<HashSet<(String, usize)>, Error> {
+        let left_idents = self.left.ident_dependencies(idents)?;
+        let right_idents = self.right.ident_dependencies(idents)?;
+        let mut result: HashSet<(String, usize)> = HashSet::new();
+        for dep in left_idents.union(&right_idents) {
+            result.insert(dep.to_owned());
+        }
+        Ok(result)
+    }
 }
 
 #[derive(Debug)]
 pub enum Junction {
     Singleton(Condition),
     Meta(JunctionData),
+}
+
+impl fmt::Display for Junction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Junction::Singleton(condition) => condition.fmt(f),
+            Junction::Meta(meta) => meta.fmt(f),
+        }
+    }
 }
 
 impl Junction {
@@ -421,6 +521,16 @@ impl Junction {
             Junction::Singleton(cond) => cond.graph(output, id),
         }
     }
+
+    pub fn ident_dependencies(
+        &self,
+        idents: &Option<&HashMap<String, Expression>>,
+    ) -> Result<HashSet<(String, usize)>, Error> {
+        match self {
+            Junction::Singleton(cond) => cond.ident_dependencies(idents),
+            Junction::Meta(meta) => meta.ident_dependencies(idents),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -428,6 +538,12 @@ pub struct Boundary {
     pub var: char,
     pub min: Expression,
     pub max: Expression,
+}
+
+impl fmt::Display for Boundary {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} ≤ {} ≤ {}", self.min, self.var, self.max)
+    }
 }
 
 impl Boundary {
@@ -457,6 +573,19 @@ impl Boundary {
             return Err(());
         }
         Err(())
+    }
+
+    pub fn ident_dependencies(
+        &self,
+        idents: &Option<&HashMap<String, Expression>>,
+    ) -> Result<HashSet<(String, usize)>, Error> {
+        let left_idents = self.min.ident_dependencies(idents)?;
+        let right_idents = self.max.ident_dependencies(idents)?;
+        let mut result: HashSet<(String, usize)> = HashSet::new();
+        for dep in left_idents.union(&right_idents) {
+            result.insert(dep.to_owned());
+        }
+        Ok(result)
     }
 }
 
