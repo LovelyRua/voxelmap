@@ -19,3 +19,8 @@ jobs:
     - name: Build
       run: cargo build --release
 
+    - name: Upload artifact for distribution
+      uses: actions/upload-artifact@v4
+      with:
+        name: voxelmap-executables
+        path: target/release/voxelmap
